@@ -1,0 +1,16 @@
+# Keep the build context small (faster builds, smaller layers).
+.git
+.github
+node_modules
+dist
+.firebase
+.firebaserc
+firebase.json
+Dockerfile
+docker-compose.yml
+.dockerignore
+*.log
+.DS_Store
+**/.DS_Store
+.vscode
+.idea
