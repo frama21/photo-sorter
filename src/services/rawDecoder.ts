@@ -21,11 +21,67 @@ const MAX_FULL_DECODE_BYTES = 80 * 1024 * 1024; // 80 MB
 
 // An embedded preview at least this wide is considered sharp enough to display
 // directly; anything smaller is a thumbnail, so we prefer a libraw decode.
-const SHARP_PREVIEW_MIN_WIDTH = 1000;
+// Kept modest so we use the (reliable) embedded preview for almost every RAW
+// and only fall back to the flaky libraw worker when there's truly no preview.
+const SHARP_PREVIEW_MIN_WIDTH = 800;
 
 // Ignore absurdly long "JPEG" candidates — a real embedded preview is never
 // this big, so a longer span means the boundary scan ran into RAW sensor data.
 const MAX_CANDIDATE_BYTES = 40 * 1024 * 1024; // 40 MB
+
+// Cap the cached preview's longest side. The embedded preview slice can run to
+// end-of-file, so we re-encode the decoded bitmap to a small JPEG instead of
+// caching tens of MB per RAW.
+const MAX_PREVIEW_DIM = 2048;
+
+// Hard ceiling for a single libraw decode so a dead/stuck worker can't hang the
+// RAW preview forever.
+const LIBRAW_TIMEOUT_MS = 20000;
+
+/**
+ * libraw-wasm (through at least 1.4.0) ships a broken worker message handler: it
+ * reads the promise rejecter from `.throw`, but `runFn` stores it under
+ * `.error`. So any worker error throws "n is not a function" inside onmessage
+ * and leaves the decode promise pending forever (the RAW spinner hangs).
+ * Re-bind the handler to the correct keys, and reject on worker errors, so the
+ * promise always settles.
+ */
+const patchLibRawWorker = (raw: unknown): void => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = raw as any;
+  const worker: Worker | undefined = r?.worker;
+  if (!worker) return;
+
+  worker.onmessage = ({ data }: MessageEvent) => {
+    const pending = r.waitForWorker;
+    if (!pending) return;
+    r.waitForWorker = false;
+    if (data?.error) pending.error(data.error);
+    else pending.return(data?.out);
+  };
+  worker.onerror = (event: ErrorEvent) => {
+    const pending = r.waitForWorker;
+    if (!pending) return;
+    r.waitForWorker = false;
+    pending.error(event?.message || "libraw worker error");
+  };
+};
+
+/** Reject if a promise doesn't settle within `ms`. */
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error("libraw decode timed out")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(id);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(id);
+        reject(err);
+      },
+    );
+  });
 
 /**
  * Decode a RAW file to a URL the browser can display.
@@ -56,29 +112,72 @@ export const decodeRawImage = async (file: File): Promise<string | null> => {
 };
 
 /**
- * Decode RAW sensor data using libraw-wasm.
+ * Extract the camera's embedded thumbnail/preview via LibRaw. This works across
+ * RAW formats (JPEG or bitmap previews) even when the raw byte-scan finds
+ * nothing, and it's cheap — no demosaicing of the full sensor.
+ */
+const libRawThumbnail = async (
+  raw: InstanceType<typeof LibRaw>,
+): Promise<string | null> => {
+  try {
+    const thumb = await withTimeout(raw.thumbnailData(), LIBRAW_TIMEOUT_MS);
+    if (!thumb) return null;
+    const bytes = thumb.data;
+    if (!bytes || !(bytes instanceof Uint8Array) || bytes.length === 0) {
+      return null;
+    }
+    // Most embedded thumbnails are a complete JPEG file.
+    if (thumb.format === "jpeg" || (bytes[0] === 0xff && bytes[1] === 0xd8)) {
+      // Copy into a fresh Uint8Array so the Blob part is ArrayBuffer-backed.
+      return URL.createObjectURL(
+        new Blob([new Uint8Array(bytes)], { type: "image/jpeg" }),
+      );
+    }
+    // Otherwise it's a raw RGB bitmap.
+    return rgbToDataUrl(bytes, thumb.width, thumb.height);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Decode a RAW with libraw-wasm. Tries the embedded thumbnail/preview first
+ * (fast & reliable), then falls back to a full sensor decode.
  */
 const decodeWithLibRaw = async (file: File): Promise<string | null> => {
+  let raw: InstanceType<typeof LibRaw> | null = null;
   try {
-    const raw = new LibRaw();
+    raw = new LibRaw();
+    patchLibRawWorker(raw); // work around the upstream hang-on-error bug
+
     const arrayBuffer = await file.arrayBuffer();
     const fileBuffer = new Uint8Array(arrayBuffer);
 
-    await raw.open(fileBuffer, {
-      useCameraWb: true,
-      userQual: 3, // AHD interpolation
-      halfSize: false, // full resolution for a crisp preview
-      outputColor: 1, // sRGB
-      outputBps: 8,
-      noAutoBright: false,
-    });
+    await withTimeout(
+      raw.open(fileBuffer, {
+        useCameraWb: true,
+        userQual: 3, // AHD interpolation
+        halfSize: true, // half-res is fast & memory-safe; embedded JPEG covers sharpness
+        outputColor: 1, // sRGB
+        outputBps: 8,
+        noAutoBright: false,
+      }),
+      LIBRAW_TIMEOUT_MS,
+    );
 
-    const meta = await raw.metadata();
-    const imageDataResult = await raw.imageData();
+    // 1) Fast, reliable path: the camera's embedded thumbnail/preview.
+    const thumb = await libRawThumbnail(raw);
+    if (thumb) return thumb;
+
+    // 2) Last resort: decode the actual sensor data.
+    const meta = await withTimeout(raw.metadata(), LIBRAW_TIMEOUT_MS).catch(
+      () => null,
+    );
+    const imageDataResult = await withTimeout(raw.imageData(), LIBRAW_TIMEOUT_MS);
 
     const imageData = imageDataResult?.data;
-    const width = imageDataResult?.width || meta.width || 0;
-    const height = imageDataResult?.height || meta.height || 0;
+    const width = imageDataResult?.width || meta?.width || 0;
+    const height = imageDataResult?.height || meta?.height || 0;
 
     if (
       !imageData ||
@@ -93,14 +192,49 @@ const decodeWithLibRaw = async (file: File): Promise<string | null> => {
     return rgbToDataUrl(imageData, width, height);
   } catch {
     return null;
+  } finally {
+    // libraw spawns one worker per instance — terminate it so decoding many
+    // RAW files doesn't accumulate workers.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (raw as any)?.worker?.terminate?.();
+    } catch {
+      /* ignore */
+    }
   }
 };
 
 /**
- * Find every embedded JPEG (SOI..EOI) in the file, then return the LARGEST one
- * that actually decodes. Each candidate is validated with createImageBitmap, so
- * a mis-parsed/corrupt span is never served as a broken preview — we just move
- * on to the next candidate (and ultimately to a libraw decode).
+ * Re-encode a decoded bitmap to a small, bounded JPEG data URL so we never cache
+ * the original (possibly tens-of-MB) source slice.
+ */
+const bitmapToDataUrl = (bitmap: ImageBitmap): string | null => {
+  try {
+    const scale = Math.min(
+      1,
+      MAX_PREVIEW_DIM / Math.max(bitmap.width, bitmap.height),
+    );
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", 0.9);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Find the embedded JPEG previews in a RAW file and return the one with the
+ * largest *decoded* width. Each candidate is sliced from its SOI marker
+ * (0xFFD8FF) to the next SOI (or end of file) and handed to the JPEG decoder,
+ * which finds the real EOI itself and ignores trailing bytes. This avoids
+ * truncating the preview — the failure mode of a hand-rolled EOI scan on formats
+ * like Sony ARW. Only candidates that actually decode are returned.
  */
 const extractEmbeddedPreview = async (
   file: File,
@@ -108,44 +242,51 @@ const extractEmbeddedPreview = async (
   try {
     const data = new Uint8Array(await file.arrayBuffer());
 
-    const candidates: { start: number; end: number; len: number }[] = [];
+    // Collect SOI offsets (a JPEG starts with FF D8 FF ...).
+    const sois: number[] = [];
     for (let i = 0; i + 2 < data.length; i++) {
-      // A real JPEG starts with SOI (0xFFD8) immediately followed by a marker.
       if (data[i] === 0xff && data[i + 1] === 0xd8 && data[i + 2] === 0xff) {
-        const end = findJpegEoi(data, i);
-        if (end > i) {
-          const len = end + 2 - i;
-          if (len <= MAX_CANDIDATE_BYTES) candidates.push({ start: i, end, len });
-          i = end + 1; // continue scanning after this JPEG
-        }
+        sois.push(i);
       }
     }
+    if (sois.length === 0) return null;
 
-    if (candidates.length === 0) return null;
+    // Each candidate spans from its SOI to the next SOI (or EOF), capped. Larger
+    // spans are more likely to hold the full preview, so try those first.
+    const candidates = sois
+      .map((start, idx) => {
+        const next = idx + 1 < sois.length ? sois[idx + 1] : data.length;
+        return { start, end: Math.min(next, start + MAX_CANDIDATE_BYTES) };
+      })
+      .sort((a, b) => b.end - b.start - (a.end - a.start));
 
-    // Try the largest few candidates; the first that genuinely decodes wins.
-    candidates.sort((a, b) => b.len - a.len);
+    if (typeof createImageBitmap !== "function") {
+      // No validation available — trust the largest candidate.
+      const c = candidates[0];
+      const blob = new Blob([data.slice(c.start, c.end)], { type: "image/jpeg" });
+      return { url: URL.createObjectURL(blob), width: Number.MAX_SAFE_INTEGER };
+    }
 
-    for (const c of candidates.slice(0, 5)) {
-      const bytes = data.slice(c.start, c.end + 2);
-      const blob = new Blob([bytes], { type: "image/jpeg" });
-
-      if (typeof createImageBitmap !== "function") {
-        // No validation available — trust the largest candidate.
-        return { url: URL.createObjectURL(blob), width: Number.MAX_SAFE_INTEGER };
-      }
-
+    let best: { url: string; width: number } | null = null;
+    for (const c of candidates.slice(0, 6)) {
+      const blob = new Blob([data.slice(c.start, c.end)], { type: "image/jpeg" });
       try {
         const bitmap = await createImageBitmap(blob);
         const width = bitmap.width;
-        bitmap.close();
-        return { url: URL.createObjectURL(blob), width };
+        if (!best || width > best.width) {
+          // Re-encode to a small JPEG so we don't cache the giant source slice.
+          const url = bitmapToDataUrl(bitmap);
+          bitmap.close();
+          if (url) best = { url, width };
+        } else {
+          bitmap.close();
+        }
       } catch {
-        // Corrupt / undecodable candidate — try the next one.
+        // Not a decodable JPEG at this offset — skip.
       }
     }
 
-    return null;
+    return best;
   } catch {
     return null;
   }
@@ -202,63 +343,6 @@ const rgbToDataUrl = (
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
-
-/**
- * Find the End-Of-Image (0xFFD9) for the JPEG starting at `start` (an SOI).
- * Walks the JPEG segment structure so a 0xFFD9 byte pair *inside* compressed
- * scan data is not mistaken for the real EOI (which truncates the preview).
- */
-const findJpegEoi = (data: Uint8Array, start: number): number => {
-  const n = data.length;
-  let i = start + 2;
-
-  while (i < n - 1) {
-    // Bound the scan: a real embedded preview never spans this far.
-    if (i - start > MAX_CANDIDATE_BYTES) return -1;
-    if (data[i] !== 0xff) {
-      i++;
-      continue;
-    }
-
-    let marker = data[i + 1];
-    // Skip fill bytes (0xFF 0xFF ...).
-    while (marker === 0xff && i + 2 < n) {
-      i++;
-      marker = data[i + 1];
-    }
-
-    if (marker === 0xd9) return i; // EOI
-    if (marker === 0x00 || marker === 0x01) {
-      i += 2; // stuffed byte / TEM — no payload
-      continue;
-    }
-    if (marker >= 0xd0 && marker <= 0xd7) {
-      i += 2; // RSTn restart markers — no payload
-      continue;
-    }
-
-    if (i + 3 >= n) return -1;
-    const len = (data[i + 2] << 8) | data[i + 3];
-    if (len < 2) return -1;
-
-    if (marker === 0xda) {
-      // Start Of Scan: skip the header, then scan entropy-coded data until the
-      // next real marker (ignoring stuffed 0xFF00 and RSTn markers).
-      i += 2 + len;
-      while (i < n - 1) {
-        if (data[i] === 0xff) {
-          const m = data[i + 1];
-          if (m !== 0x00 && !(m >= 0xd0 && m <= 0xd7)) break;
-        }
-        i++;
-      }
-    } else {
-      i += 2 + len;
-    }
-  }
-
-  return -1;
-};
 
 /**
  * Check whether the decoded RGB data is essentially all white (255) — a sign
