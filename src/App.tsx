@@ -63,7 +63,7 @@ const App = () => {
       <Navbar />
 
       {/* Main */}
-      <main className="max-w-[80dvw] mx-auto px-3 md:px-6 py-4 md:py-6">
+      <main className="container mx-auto py-6">
         {fs.error && (
           <Alert className="max-w-md border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-50">
             <AlertTriangleIcon />
