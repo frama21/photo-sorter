@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.0.1] - 2026-06-14
+
+### Fixed
+
+- RAW preview no longer hangs on libraw worker errors ("n is not a function").
+- Truncated/broken Sony ARW previews — the embedded JPEG is now extracted
+  correctly (slice SOI→next-SOI and let the decoder find the EOI).
+
+### Changed
+
+- Patch the libraw-wasm worker (reject on error) + 20s timeout + terminate the
+  worker after each decode.
+- Fall back to libraw `thumbnailData()` for RAW without an embedded JPEG.
+- Re-encode previews to a bounded JPEG so cached previews aren't tens of MB.
+- Bump libraw-wasm to ^1.4.0.
+
 ## [2.0.0] - 2026-06-14
 
 > ⚠️ **Breaking:** database schema bumped to `2.0`; existing
