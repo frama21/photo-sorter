@@ -34,6 +34,9 @@ const MAX_CANDIDATE_BYTES = 40 * 1024 * 1024 // 40 MB
 // caching tens of MB per RAW.
 const MAX_PREVIEW_DIM = 2048
 
+// Longest side for RAW *thumbnails* (filmstrip/grid) — small and memory-cheap.
+const RAW_THUMB_DIM = 512
+
 // Hard ceiling for a single libraw decode so a dead/stuck worker can't hang the
 // RAW preview forever.
 const LIBRAW_TIMEOUT_MS = 20000
@@ -105,6 +108,21 @@ export const decodeRawImage = async (file: File): Promise<string | null> => {
     }
 
     // Last resort: whatever (validated) embedded preview we found, even if small.
+    return embedded?.url ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Fast, worker-free RAW thumbnail for the filmstrip/grid: extract the largest
+ * embedded JPEG preview and re-encode it small. Skips the slow/flaky libraw
+ * sensor decode entirely, so many thumbnails can be decoded in the background.
+ * Returns null when the RAW has no embedded preview.
+ */
+export const decodeRawThumbnail = async (file: File): Promise<string | null> => {
+  try {
+    const embedded = await extractEmbeddedPreview(file, RAW_THUMB_DIM)
     return embedded?.url ?? null
   } catch {
     return null
@@ -198,9 +216,9 @@ const decodeWithLibRaw = async (file: File): Promise<string | null> => {
  * Re-encode a decoded bitmap to a small, bounded JPEG data URL so we never cache
  * the original (possibly tens-of-MB) source slice.
  */
-const bitmapToDataUrl = (bitmap: ImageBitmap): string | null => {
+const bitmapToDataUrl = (bitmap: ImageBitmap, maxDim = MAX_PREVIEW_DIM): string | null => {
   try {
-    const scale = Math.min(1, MAX_PREVIEW_DIM / Math.max(bitmap.width, bitmap.height))
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height))
     const w = Math.max(1, Math.round(bitmap.width * scale))
     const h = Math.max(1, Math.round(bitmap.height * scale))
     const canvas = document.createElement("canvas")
@@ -223,7 +241,10 @@ const bitmapToDataUrl = (bitmap: ImageBitmap): string | null => {
  * truncating the preview — the failure mode of a hand-rolled EOI scan on formats
  * like Sony ARW. Only candidates that actually decode are returned.
  */
-const extractEmbeddedPreview = async (file: File): Promise<{ url: string; width: number } | null> => {
+const extractEmbeddedPreview = async (
+  file: File,
+  maxDim = MAX_PREVIEW_DIM
+): Promise<{ url: string; width: number } | null> => {
   try {
     const data = new Uint8Array(await file.arrayBuffer())
 
@@ -260,7 +281,7 @@ const extractEmbeddedPreview = async (file: File): Promise<{ url: string; width:
         const width = bitmap.width
         if (!best || width > best.width) {
           // Re-encode to a small JPEG so we don't cache the giant source slice.
-          const url = bitmapToDataUrl(bitmap)
+          const url = bitmapToDataUrl(bitmap, maxDim)
           bitmap.close()
           if (url) best = { url, width }
         } else {

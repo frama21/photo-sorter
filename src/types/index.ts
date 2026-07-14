@@ -58,6 +58,9 @@ export type MoveMode = "cut" | "copy"
 
 export type NavigationDirection = "next" | "prev"
 
+/** Main content layout: the single-photo viewer or the thumbnail grid. */
+export type ViewMode = "single" | "grid"
+
 /**
  * A fully serializable record of a sort action. Intentionally holds NO
  * FileSystem handles or File objects so it survives JSON.stringify intact.

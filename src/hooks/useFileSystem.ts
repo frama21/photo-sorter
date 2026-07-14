@@ -3,7 +3,7 @@ import debounce from "lodash.debounce"
 
 import { isSupportedImage, isPreviewable, getFileFormatInfo } from "@/config/fileFormats"
 
-import { decodeRawImage } from "@/services/rawDecoder"
+import { decodeRawImage, decodeRawThumbnail } from "@/services/rawDecoder"
 import { extractMetadata, parseCaptureDate } from "@/services/exifService"
 import {
   initProjectDatabase,
@@ -38,14 +38,22 @@ const FOLDER_COLORS = [
   "bg-teal-500"
 ]
 
-interface UndoEntry {
+const MAX_UNDO = 20
+
+interface UndoItem {
   photoKey: string
   photoName: string
-  /** The actual name written to the target folder (may differ on collision). */
+  /** The actual name written to the target (may differ on collision). */
   createdName: string
   folderId: string
   mode: MoveMode
-  photoIndex: number
+}
+
+/** One undoable action: a single sort, a batch sort, or a reject (1..N files). */
+interface UndoEntry {
+  items: UndoItem[]
+  /** Index to return to after the action is undone. */
+  anchorIndex: number
 }
 
 // === FILE OPERATION HELPERS (pure — no component state) ===
@@ -104,6 +112,23 @@ const moveFileHandle = async (
   }
 }
 
+// Copy or move a photo into a target directory, never overwriting. Returns the
+// created name plus the file's handle at its final location (unchanged for copy).
+const applyAssign = async (
+  photo: PhotoFile,
+  targetDir: FileSystemDirectoryHandle,
+  mode: MoveMode,
+  rootDir: FileSystemDirectoryHandle
+): Promise<{ createdName: string; handle: FileSystemFileHandle }> => {
+  const createdName = await getUniqueFileName(targetDir, photo.name)
+  if (mode === "cut") {
+    await moveFileHandle(photo.handle, targetDir, createdName, rootDir, photo.name)
+    return { createdName, handle: await targetDir.getFileHandle(createdName) }
+  }
+  await writeFileTo(targetDir, createdName, photo.file)
+  return { createdName, handle: photo.handle }
+}
+
 export interface FileSystemHook {
   photos: PhotoFile[]
   currentIndex: number
@@ -114,9 +139,13 @@ export interface FileSystemHook {
   moveMode: MoveMode
   operations: SortOperation[]
   rawPreviewUrls: Map<string, string>
+  /** Small RAW previews for the filmstrip/grid thumbnails. */
+  rawThumbUrls: Map<string, string>
   isDecodingRaw: boolean
   metadataByKey: Map<string, PhotoMetadata>
   canUndo: boolean
+  /** Keys of the currently multi-selected photos. */
+  selectedKeys: Set<string>
 
   loadDirectory: () => Promise<void>
   addFolder: (name: string) => Promise<void>
@@ -124,11 +153,19 @@ export interface FileSystemHook {
   assignPhotoToFolder: (photoIndex: number, folderId: string) => Promise<void>
   undoLastOperation: () => Promise<void>
   navigatePhoto: (direction: NavigationDirection) => void
+  goToIndex: (index: number) => void
   jumpToNextUnsorted: () => void
   recreatePreviewUrl: (photoKey: string) => void
   setMoveMode: (mode: MoveMode) => void
+  toggleSelect: (photoIndex: number) => void
+  selectRangeTo: (photoIndex: number) => void
+  clearSelection: () => void
+  selectAllUnsorted: () => void
+  batchAssignToFolder: (folderId: string) => Promise<void>
   getCurrentPhoto: () => PhotoFile | null
-  getCurrentFolder: () => SortFolder | null
+  getCurrentFolder: () => { name: string; color: string } | null
+  /** Display metadata (name + color) for a folder id, or null if unknown. */
+  getFolderMeta: (folderId: string | undefined) => { name: string; color: string } | null
   getOperationStats: () => { success: number; failed: number; total: number }
 }
 
@@ -151,14 +188,24 @@ const useFileSystem = (): FileSystemHook => {
   const rawPreviewKeysRef = useRef<Set<string>>(new Set())
   const failedRawDecodesRef = useRef<Set<string>>(new Set())
 
+  // RAW thumbnails (filmstrip/grid) — small, decoded in the background.
+  const [rawThumbUrls, setRawThumbUrls] = useState<Map<string, string>>(new Map())
+  const rawThumbKeysRef = useRef<Set<string>>(new Set())
+  const rawThumbQueueRef = useRef<Set<string>>(new Set())
+
   // Lazily-extracted metadata, keyed by stable file key.
   const [metadataByKey, setMetadataByKey] = useState<Map<string, PhotoMetadata>>(new Map())
   const metaQueueRef = useRef<Set<string>>(new Set())
   const metadataCacheRef = useRef<Record<string, PhotoMetadata>>({})
 
+  // Multi-select (ephemeral).
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
+
   // === REFS ===
   const rootDirHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
   const folderDirHandlesRef = useRef<Map<string, FileSystemDirectoryHandle>>(new Map())
+  // Anchor index for shift-click range selection.
+  const selectionAnchorRef = useRef<number | null>(null)
 
   // === BLOB URL LIFECYCLE: revoke to avoid leaking across reloads/unmount ===
   const revokeAllUrls = useCallback(() => {
@@ -170,7 +217,13 @@ const useFileSystem = (): FileSystemHook => {
       prev.forEach(url => URL.revokeObjectURL(url))
       return new Map()
     })
+    setRawThumbUrls(prev => {
+      prev.forEach(url => URL.revokeObjectURL(url))
+      return new Map()
+    })
     rawPreviewKeysRef.current.clear()
+    rawThumbKeysRef.current.clear()
+    rawThumbQueueRef.current.clear()
   }, [])
 
   useEffect(() => {
@@ -224,6 +277,8 @@ const useFileSystem = (): FileSystemHook => {
       failedRawDecodesRef.current.clear()
       metaQueueRef.current.clear()
       setUndoStack([])
+      setSelectedKeys(new Set())
+      selectionAnchorRef.current = null
 
       rootDirHandleRef.current = dirHandle
       setIsLoading(true)
@@ -337,6 +392,7 @@ const useFileSystem = (): FileSystemHook => {
       }
 
       setFolders(restoredFolders)
+
       // Drop mappings that point at folders that no longer exist.
       const validFolderIds = new Set(restoredFolders.map(f => f.id))
       const restoredSorted: SortedMapping = {}
@@ -437,6 +493,42 @@ const useFileSystem = (): FileSystemHook => {
     decodeCurrentRaw()
   }, [currentIndex, photos])
 
+  // === RAW THUMBNAILS: decode small embedded previews for ALL RAW photos in the
+  // background (concurrency-capped) so the filmstrip/grid show them. Worker-free
+  // and memory-light; each key is attempted at most once per session.
+  useEffect(() => {
+    const pending = photos.filter(p => p.format.category === "raw" && !rawThumbKeysRef.current.has(p.key))
+    if (pending.length === 0) return
+
+    let cancelled = false
+    let cursor = 0
+    const worker = async () => {
+      while (!cancelled && cursor < pending.length) {
+        const p = pending[cursor++]
+        if (rawThumbKeysRef.current.has(p.key) || rawThumbQueueRef.current.has(p.key)) continue
+        rawThumbQueueRef.current.add(p.key)
+        try {
+          const url = await decodeRawThumbnail(p.file)
+          if (cancelled) {
+            if (url) URL.revokeObjectURL(url)
+          } else {
+            rawThumbKeysRef.current.add(p.key) // done (even if no preview) — don't retry
+            if (url) setRawThumbUrls(prev => new Map(prev).set(p.key, url))
+          }
+        } catch {
+          rawThumbKeysRef.current.add(p.key)
+        } finally {
+          rawThumbQueueRef.current.delete(p.key)
+        }
+      }
+    }
+    void Promise.all(Array.from({ length: Math.min(3, pending.length) }, () => worker()))
+
+    return () => {
+      cancelled = true
+    }
+  }, [photos])
+
   // === FOLDER MANAGEMENT ===
   const addFolder = useCallback(
     async (name: string) => {
@@ -531,7 +623,7 @@ const useFileSystem = (): FileSystemHook => {
           }
           return updated
         })
-        setUndoStack(prev => prev.filter(e => e.folderId !== folderId))
+        setUndoStack(prev => prev.filter(e => !e.items.some(it => it.folderId === folderId)))
 
         await updateDatabaseFolders(rootHandle, updatedFolders)
 
@@ -551,103 +643,145 @@ const useFileSystem = (): FileSystemHook => {
   )
 
   // === FILE OPERATIONS ===
-  const assignPhotoToFolder = useCallback(
-    async (photoIndex: number, folderId: string) => {
-      const photo = photos[photoIndex]
-      const folder = folders.find(f => f.id === folderId)
+  // Shared core for single sort and batch sort: copy/move each photo into
+  // `target`, then apply ONE batched state update + ONE undo entry.
+  const assignManyToTarget = useCallback(
+    async (
+      indices: number[],
+      target: { id: string; name: string; dirHandle: FileSystemDirectoryHandle },
+      mode: MoveMode,
+      opts: { advance: boolean }
+    ) => {
       const rootHandle = rootDirHandleRef.current
-      if (!photo || !folder || !rootHandle) return
+      if (!rootHandle || indices.length === 0) return
 
-      const targetDirHandle = folder.dirHandle || folderDirHandlesRef.current.get(folderId)
-      if (!targetDirHandle) {
-        setError("Folder target tidak ditemukan")
-        return
-      }
-
+      const isBatch = indices.length > 1
       addStatus({
         type: "loading",
-        message: `${moveMode === "cut" ? "Memindahkan" : "Mengcopy"} ${photo.name}...`,
+        message: isBatch
+          ? `Memproses ${indices.length} file...`
+          : `${mode === "cut" ? "Memindahkan" : "Mengcopy"} ${photos[indices[0]]?.name ?? ""}...`,
         icon: "file"
       })
 
       try {
-        const createdName = await getUniqueFileName(targetDirHandle, photo.name)
-        let updatedHandle = photo.handle
+        const assignedDelta: SortedMapping = {}
+        const handleUpdates = new Map<string, FileSystemFileHandle>()
+        const ops: SortOperation[] = []
+        const undoItems: UndoItem[] = []
 
-        if (moveMode === "cut") {
-          await moveFileHandle(photo.handle, targetDirHandle, createdName, rootHandle, photo.name)
-          // Re-acquire the handle at its new location so it is never stale.
-          updatedHandle = await targetDirHandle.getFileHandle(createdName)
-          setPhotos(prev => prev.map((p, i) => (i === photoIndex ? { ...p, handle: updatedHandle } : p)))
-        } else {
-          await writeFileTo(targetDirHandle, createdName, photo.file)
+        for (const idx of indices) {
+          const photo = photos[idx]
+          if (!photo) continue
+          try {
+            const { createdName, handle } = await applyAssign(photo, target.dirHandle, mode, rootHandle)
+            assignedDelta[photo.key] = target.id
+            if (mode === "cut") handleUpdates.set(photo.key, handle)
+            ops.push({
+              photoName: photo.name,
+              folderId: target.id,
+              folderName: target.name,
+              mode,
+              success: true,
+              timestamp: Date.now()
+            })
+            undoItems.push({ photoKey: photo.key, photoName: photo.name, createdName, folderId: target.id, mode })
+          } catch (err) {
+            ops.push({
+              photoName: photo.name,
+              folderId: target.id,
+              folderName: target.name,
+              mode,
+              success: false,
+              error: err instanceof Error ? err.message : "Unknown error",
+              timestamp: Date.now()
+            })
+          }
         }
 
-        const operation: SortOperation = {
-          photoName: photo.name,
-          folderId,
-          folderName: folder.name,
-          mode: moveMode,
-          success: true,
-          timestamp: Date.now()
+        const okCount = undoItems.length
+        const failCount = ops.length - okCount
+
+        if (handleUpdates.size > 0) {
+          setPhotos(prev =>
+            prev.map(p => (handleUpdates.has(p.key) ? { ...p, handle: handleUpdates.get(p.key)! } : p))
+          )
+        }
+        // Functional update + a merge-based DB write so overlapping assigns
+        // (rapid keying + navigation) never clobber each other's mappings.
+        setSortedPhotos(prev => ({ ...prev, ...assignedDelta }))
+        if (ops.length > 0) setOperations(prev => [...prev, ...ops])
+        if (undoItems.length > 0) {
+          setUndoStack(prev => [...prev.slice(-(MAX_UNDO - 1)), { items: undoItems, anchorIndex: indices[0] }])
         }
 
-        const newSortedPhotos = { ...sortedPhotos, [photo.key]: folderId }
-        const newIndex = Math.min(photoIndex + 1, photos.length - 1)
-
-        setSortedPhotos(newSortedPhotos)
-        setOperations(prev => [...prev, operation])
-        setUndoStack(prev => [
-          ...prev.slice(-19),
-          { photoKey: photo.key, photoName: photo.name, createdName, folderId, mode: moveMode, photoIndex }
-        ])
-        setCurrentIndex(newIndex)
-        setError(null)
+        let newIndex = currentIndex
+        if (opts.advance) {
+          newIndex = Math.min(indices[indices.length - 1] + 1, photos.length - 1)
+          setCurrentIndex(newIndex)
+        }
+        setError(failCount > 0 ? `Gagal memproses ${failCount} file` : null)
 
         await updateDatabaseAfterOperation(rootHandle, {
-          sortedPhotos: newSortedPhotos,
+          sortedPatch: assignedDelta,
           currentIndex: newIndex,
-          operation,
-          totalPhotos: photos.length,
-          sortedCount: Object.keys(newSortedPhotos).length
+          operations: ops,
+          totalPhotos: photos.length
         })
 
         addStatus({
-          type: "success",
-          message: `${photo.name} berhasil di${moveMode === "cut" ? "pindahkan" : "copy"}`,
+          type: okCount > 0 ? "success" : "error",
+          message: isBatch
+            ? `${okCount} file diproses${failCount ? `, ${failCount} gagal` : ""}`
+            : okCount > 0
+              ? `${photos[indices[0]]?.name} berhasil`
+              : "Gagal memproses file",
           icon: "file"
-        })
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "Unknown error"
-        const failedOp: SortOperation = {
-          photoName: photo.name,
-          folderId,
-          folderName: folder.name,
-          mode: moveMode,
-          success: false,
-          error: errorMsg,
-          timestamp: Date.now()
-        }
-        setOperations(prev => [...prev, failedOp])
-        setError(`Gagal memindahkan ${photo.name}: ${errorMsg}`)
-        addStatus({
-          type: "error",
-          message: `Gagal ${moveMode === "cut" ? "memindahkan" : "mengcopy"} ${photo.name}`,
-          icon: "file"
-        })
-
-        await updateDatabaseAfterOperation(rootHandle, {
-          sortedPhotos,
-          currentIndex,
-          operation: failedOp,
-          totalPhotos: photos.length,
-          sortedCount: Object.keys(sortedPhotos).length
         })
       } finally {
         clearStatus()
       }
     },
-    [photos, folders, moveMode, sortedPhotos, currentIndex]
+    [photos, currentIndex]
+  )
+
+  const assignPhotoToFolder = useCallback(
+    async (photoIndex: number, folderId: string) => {
+      const folder = folders.find(f => f.id === folderId)
+      const dirHandle = folder?.dirHandle || folderDirHandlesRef.current.get(folderId)
+      if (!folder || !dirHandle) {
+        setError("Folder target tidak ditemukan")
+        return
+      }
+      await assignManyToTarget([photoIndex], { id: folder.id, name: folder.name, dirHandle }, moveMode, {
+        advance: true
+      })
+    },
+    [folders, moveMode, assignManyToTarget]
+  )
+
+  const selectedIndices = useCallback(
+    () => photos.map((p, i) => (selectedKeys.has(p.key) ? i : -1)).filter(i => i >= 0),
+    [photos, selectedKeys]
+  )
+
+  const batchAssignToFolder = useCallback(
+    async (folderId: string) => {
+      const folder = folders.find(f => f.id === folderId)
+      const dirHandle = folder?.dirHandle || folderDirHandlesRef.current.get(folderId)
+      if (!folder || !dirHandle) {
+        setError("Folder target tidak ditemukan")
+        return
+      }
+      const indices = selectedIndices()
+      if (indices.length === 0) return
+      await assignManyToTarget(indices, { id: folder.id, name: folder.name, dirHandle }, moveMode, {
+        advance: false
+      })
+      setSelectedKeys(new Set())
+      selectionAnchorRef.current = null
+    },
+    [folders, moveMode, selectedIndices, assignManyToTarget]
   )
 
   const undoLastOperation = useCallback(async () => {
@@ -655,55 +789,70 @@ const useFileSystem = (): FileSystemHook => {
     const rootHandle = rootDirHandleRef.current
     if (!entry || !rootHandle) return
 
-    const folder = folders.find(f => f.id === entry.folderId)
-    const targetDir = folder?.dirHandle || folderDirHandlesRef.current.get(entry.folderId)
-    if (!targetDir) {
-      setError("Tidak bisa undo: folder target tidak ditemukan")
-      return
-    }
-
     addStatus({ type: "loading", message: "Membatalkan operasi...", icon: "file" })
 
     try {
-      if (entry.mode === "cut") {
-        // Move the file back to the root folder.
-        const movedHandle = await targetDir.getFileHandle(entry.createdName)
-        await moveFileHandle(movedHandle, rootHandle, entry.photoName, targetDir, entry.createdName)
-        const restoredHandle = await rootHandle.getFileHandle(entry.photoName)
-        setPhotos(prev => prev.map(p => (p.key === entry.photoKey ? { ...p, handle: restoredHandle } : p)))
-      } else {
-        // Copy mode: just delete the duplicate that was created.
-        await targetDir.removeEntry(entry.createdName)
+      const removedKeys: string[] = []
+      const handleUpdates = new Map<string, FileSystemFileHandle>()
+      let failed = 0
+
+      // Reverse order so collision-suffixed names unwind cleanly.
+      for (const item of [...entry.items].reverse()) {
+        const targetDir =
+          folders.find(f => f.id === item.folderId)?.dirHandle || folderDirHandlesRef.current.get(item.folderId)
+        if (!targetDir) {
+          failed++
+          continue
+        }
+        try {
+          if (item.mode === "cut") {
+            const movedHandle = await targetDir.getFileHandle(item.createdName)
+            await moveFileHandle(movedHandle, rootHandle, item.photoName, targetDir, item.createdName)
+            handleUpdates.set(item.photoKey, await rootHandle.getFileHandle(item.photoName))
+          } else {
+            // Copy: just delete the duplicate that was created.
+            await targetDir.removeEntry(item.createdName)
+          }
+          removedKeys.push(item.photoKey)
+        } catch (err) {
+          console.warn("[Hook] undo item failed:", err)
+          failed++
+        }
       }
 
-      const newSortedPhotos = { ...sortedPhotos }
-      delete newSortedPhotos[entry.photoKey]
-
-      setSortedPhotos(newSortedPhotos)
+      if (handleUpdates.size > 0) {
+        setPhotos(prev =>
+          prev.map(p => (handleUpdates.has(p.key) ? { ...p, handle: handleUpdates.get(p.key)! } : p))
+        )
+      }
+      const removedSet = new Set(removedKeys)
+      setSortedPhotos(prev => {
+        const next: SortedMapping = {}
+        for (const [k, v] of Object.entries(prev)) if (!removedSet.has(k)) next[k] = v
+        return next
+      })
       setUndoStack(prev => prev.slice(0, -1))
-      setCurrentIndex(Math.min(entry.photoIndex, Math.max(photos.length - 1, 0)))
-      setError(null)
+      setCurrentIndex(Math.min(entry.anchorIndex, Math.max(photos.length - 1, 0)))
+      setError(failed > 0 ? `Sebagian undo gagal (${failed})` : null)
 
       await updateDatabaseAfterOperation(rootHandle, {
-        sortedPhotos: newSortedPhotos,
-        currentIndex: entry.photoIndex,
-        totalPhotos: photos.length,
-        sortedCount: Object.keys(newSortedPhotos).length
+        removedKeys,
+        currentIndex: entry.anchorIndex,
+        totalPhotos: photos.length
       })
 
       addStatus({
         type: "success",
-        message: `Dibatalkan: ${entry.photoName}`,
+        message:
+          entry.items.length > 1
+            ? `Dibatalkan ${entry.items.length} operasi`
+            : `Dibatalkan: ${entry.items[0]?.photoName}`,
         icon: "file"
       })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error"
-      setError(`Gagal undo: ${msg}`)
-      addStatus({ type: "error", message: "Gagal membatalkan operasi", icon: "file" })
     } finally {
       clearStatus()
     }
-  }, [undoStack, folders, sortedPhotos, photos.length])
+  }, [undoStack, folders, photos.length])
 
   const navigatePhoto = useCallback(
     (direction: NavigationDirection) => {
@@ -713,6 +862,11 @@ const useFileSystem = (): FileSystemHook => {
         setCurrentIndex(prev => Math.max(prev - 1, 0))
       }
     },
+    [photos.length]
+  )
+
+  const goToIndex = useCallback(
+    (index: number) => setCurrentIndex(Math.max(0, Math.min(index, photos.length - 1))),
     [photos.length]
   )
 
@@ -728,6 +882,51 @@ const useFileSystem = (): FileSystemHook => {
       }
     }
   }, [photos, currentIndex, sortedPhotos])
+
+  // === MULTI-SELECT ===
+  const toggleSelect = useCallback(
+    (photoIndex: number) => {
+      const photo = photos[photoIndex]
+      if (!photo) return
+      selectionAnchorRef.current = photoIndex
+      setSelectedKeys(prev => {
+        const next = new Set(prev)
+        if (next.has(photo.key)) next.delete(photo.key)
+        else next.add(photo.key)
+        return next
+      })
+    },
+    [photos]
+  )
+
+  const selectRangeTo = useCallback(
+    (photoIndex: number) => {
+      const anchor = selectionAnchorRef.current ?? photoIndex
+      const lo = Math.min(anchor, photoIndex)
+      const hi = Math.max(anchor, photoIndex)
+      setSelectedKeys(prev => {
+        const next = new Set(prev)
+        for (let i = lo; i <= hi; i++) {
+          const p = photos[i]
+          if (p) next.add(p.key)
+        }
+        return next
+      })
+      selectionAnchorRef.current = photoIndex
+    },
+    [photos]
+  )
+
+  const clearSelection = useCallback(() => {
+    setSelectedKeys(new Set())
+    selectionAnchorRef.current = null
+  }, [])
+
+  const selectAllUnsorted = useCallback(() => {
+    const next = new Set<string>()
+    for (const p of photos) if (!sortedPhotos[p.key]) next.add(p.key)
+    setSelectedKeys(next)
+  }, [photos, sortedPhotos])
 
   // Recreate a photo's object URL after an <img> load error. A fresh URL forces
   // the browser to re-fetch/re-decode (some large images fail the first decode).
@@ -753,13 +952,20 @@ const useFileSystem = (): FileSystemHook => {
     return photos[currentIndex] ?? null
   }, [photos, currentIndex])
 
-  const getCurrentFolder = useCallback((): SortFolder | null => {
+  const getFolderMeta = useCallback(
+    (folderId: string | undefined) => {
+      if (!folderId) return null
+      const f = folders.find(x => x.id === folderId)
+      return f ? { name: f.name, color: f.color } : null
+    },
+    [folders]
+  )
+
+  const getCurrentFolder = useCallback(() => {
     const photo = photos[currentIndex]
     if (!photo) return null
-    const folderId = sortedPhotos[photo.key]
-    if (!folderId) return null
-    return folders.find(f => f.id === folderId) ?? null
-  }, [photos, sortedPhotos, currentIndex, folders])
+    return getFolderMeta(sortedPhotos[photo.key])
+  }, [photos, sortedPhotos, currentIndex, getFolderMeta])
 
   const getOperationStats = useCallback(() => {
     const success = operations.filter(o => o.success).length
@@ -780,20 +986,29 @@ const useFileSystem = (): FileSystemHook => {
     moveMode,
     operations,
     rawPreviewUrls,
+    rawThumbUrls,
     isDecodingRaw,
     metadataByKey,
     canUndo: undoStack.length > 0,
+    selectedKeys,
     loadDirectory,
     addFolder,
     removeFolder,
     assignPhotoToFolder,
     undoLastOperation,
     navigatePhoto,
+    goToIndex,
     jumpToNextUnsorted,
     recreatePreviewUrl,
     setMoveMode,
+    toggleSelect,
+    selectRangeTo,
+    clearSelection,
+    selectAllUnsorted,
+    batchAssignToFolder,
     getCurrentPhoto,
     getCurrentFolder,
+    getFolderMeta,
     getOperationStats
   }
 }

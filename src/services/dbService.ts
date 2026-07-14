@@ -127,33 +127,38 @@ const mutateDatabase = async (
   })
 
 /**
- * Update database after a single sort operation.
+ * Update database after one or more sort operations. Pass no `operations` to
+ * persist a mapping-only change (e.g. undo) without logging a sort.
  */
 export const updateDatabaseAfterOperation = async (
   dirHandle: FileSystemDirectoryHandle,
   update: {
-    sortedPhotos: SortedMapping
+    /** Mappings to set/overwrite (photoKey -> folderId). */
+    sortedPatch?: SortedMapping
+    /** Mapping keys to remove (undo / delete). */
+    removedKeys?: string[]
     currentIndex: number
-    /** Omit to persist a mapping change (e.g. undo) without logging a sort. */
-    operation?: SortOperation
+    /** Sort actions to append to the log; omit for mapping-only changes (undo). */
+    operations?: SortOperation[]
     totalPhotos: number
-    sortedCount: number
   }
 ): Promise<void> =>
   mutateDatabase(
     dirHandle,
     current => {
-      const operations = (update.operation ? [...current.operations, update.operation] : current.operations).slice(
-        -MAX_OPERATIONS
-      )
+      // Merge the delta into the CURRENT (serialized) map rather than overwriting
+      // it wholesale, so overlapping writers can't clobber each other's mappings.
+      const sortedPhotos = { ...current.sortedPhotos, ...(update.sortedPatch ?? {}) }
+      for (const k of update.removedKeys ?? []) delete sortedPhotos[k]
+      const operations = [...current.operations, ...(update.operations ?? [])].slice(-MAX_OPERATIONS)
       const successOps = operations.filter(o => o.success).length
       return {
-        sortedPhotos: update.sortedPhotos,
+        sortedPhotos,
         currentIndex: update.currentIndex,
         operations,
         stats: {
           totalPhotos: update.totalPhotos,
-          sortedCount: update.sortedCount,
+          sortedCount: Object.keys(sortedPhotos).length,
           successOperations: successOps,
           failedOperations: operations.length - successOps
         }

@@ -16,7 +16,14 @@ the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/Fi
   metadata), falling back to the file's modified date.
 - **Sort with shortcuts** — keys `1`–`9` assign the current file to a folder.
 - **Copy or Cut mode** — duplicate into the target folder, or move it there.
-- **Undo** the last sort (`Ctrl/Cmd+Z`), with full copy/move reversal.
+- **Filmstrip & grid view** — a thumbnail strip under the viewer and a
+  toggleable responsive grid (with RAW previews), both showing sort status.
+- **Zoom & pan** — a desktop hover **loupe** magnifier, plus pinch-to-zoom /
+  drag-to-pan and double-tap-to-reset on touch, for pixel-peeping.
+- **Multi-select + batch sort** — select many photos (checkbox, shift-range,
+  "pilih belum disortir") and sort them all into a folder at once — via the
+  folder button or its number shortcut; a batch is a single undo.
+- **Undo** the last action (`Ctrl/Cmd+Z`), covering single and batch sorts.
 - **Jump to next unsorted** (`U`) to skip already-sorted files, plus an
   "all sorted" completion state.
 - **Wide format support** — JPEG/PNG/WebP/AVIF/GIF/BMP/TIFF, SVG, plus RAW
@@ -45,7 +52,7 @@ the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/Fi
 | `←` / `→`      | Previous / next photo       |
 | `Space`        | Next photo                  |
 | `U`            | Jump to next unsorted photo |
-| `Ctrl/Cmd + Z` | Undo last sort              |
+| `Ctrl/Cmd + Z` | Undo last action            |
 
 (Shortcuts are ignored while typing in a text field.)
 

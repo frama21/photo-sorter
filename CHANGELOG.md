@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [2.1.0] - 2026-07-14
 
 ### Security
 
@@ -68,6 +68,18 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **Filmstrip & grid view.** A scrollable thumbnail filmstrip under the viewer
+  and a toggleable responsive grid for overview — both show sort status and the
+  current photo, and lazily decode small **RAW previews** in the background.
+- **Zoom & pan.** A desktop hover **loupe** magnifier over the image, plus
+  pinch-to-zoom / drag-to-pan and double-tap-to-reset on touch.
+- **Multi-select + batch sort.** Select photos (checkbox, shift-click range,
+  "pilih belum disortir") and sort the whole selection into a folder at once —
+  from the contextual bottom bar, the sidebar's Sortir button, or a folder's
+  number shortcut; a batch is a single undoable unit.
+- **Keyboard-shortcut help.** A `?` button in the navbar opens a dialog listing
+  the shortcuts, rendered with the shadcn `Kbd` component (moved out of the
+  sidebar tip).
 - Detailed project documentation under [`docs/`](docs/): PRD, SPEC,
   ARCHITECTURE, DESIGN, TDD, UI-Design, PRINCIPLES, DEPLOYMENT, and SECURITY.
 

@@ -2,6 +2,7 @@ import { version } from "../../../package.json"
 
 import ModeToggle from "@/components/ThemeMode"
 import StatusIndicator from "@/components/StatusIndicator"
+import ShortcutsDialog from "@/components/ShortcutsDialog"
 
 const Navbar = () => {
   const appVersion = `v${version}`
@@ -22,6 +23,7 @@ const Navbar = () => {
 
         <div className="flex items-center gap-2">
           <StatusIndicator />
+          <ShortcutsDialog />
           <ModeToggle />
         </div>
       </div>

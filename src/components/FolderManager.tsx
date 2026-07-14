@@ -1,11 +1,10 @@
 import { useState } from "react"
-import { Plus, Trash2, FolderOpen, Keyboard, Scissors, Copy, Undo2, SkipForward } from "lucide-react"
+import { Plus, Trash2, FolderOpen, Scissors, Copy, Undo2, SkipForward } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Item,
   ItemMedia,
@@ -174,19 +173,6 @@ const FolderManager = ({
             Belum disortir
           </Button>
         </div>
-
-        {/* Tips */}
-        {folders.length > 0 && (
-          <div className="flex flex-col items-center">
-            <Alert>
-              <Keyboard className="w-3.5 h-3.5 text-gray-400" />
-              <AlertTitle>Shortcut</AlertTitle>
-              <AlertDescription>
-                1-9 sortir • ← → navigasi • Spasi next • U lompat ke belum disortir • Ctrl+Z undo • Geser di mobile
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
       </CardContent>
     </Card>
   )
