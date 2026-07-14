@@ -1,17 +1,15 @@
-import { ChevronLeft, ChevronRight, Scissors, Copy } from "lucide-react";
-import isEmpty from "lodash.isempty";
+import { ChevronLeft, ChevronRight, Scissors, Copy } from "lucide-react"
 
-import { Button } from "@/components/ui/button";
-import type { SortFolder, MoveMode } from "@/types";
+import { Button } from "@/components/ui/button"
+import type { SortFolder, MoveMode } from "@/types"
 
 interface MobileActionBarProps {
-  folders: SortFolder[];
-  moveMode: MoveMode;
-  currentIndex: number;
-  onAssign: (photoIndex: number, folderId: string) => Promise<void>;
-  onNavigate: (direction: "next" | "prev") => void;
-  currentPhotoIndex: number;
-  totalPhotos: number;
+  folders: SortFolder[]
+  moveMode: MoveMode
+  currentIndex: number
+  onAssign: (photoIndex: number, folderId: string) => Promise<void>
+  onNavigate: (direction: "next" | "prev") => void
+  totalPhotos: number
 }
 
 const MobileActionBar = ({
@@ -20,18 +18,17 @@ const MobileActionBar = ({
   currentIndex,
   onAssign,
   onNavigate,
-  currentPhotoIndex,
-  totalPhotos,
+  totalPhotos
 }: MobileActionBarProps) => {
-  const isEmptyFolder = isEmpty(folders);
+  const isEmptyFolder = folders.length === 0
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-dark-800/95 backdrop-blur-lg border-t border-dark-700 p-2 z-50">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-lg border-t border-border p-2 z-50">
       <div className="flex items-center justify-between gap-2">
         <div className="flex flex-row items-center gap-2">
           <Button
             onClick={() => onNavigate("prev")}
-            disabled={currentPhotoIndex === 0}
+            disabled={currentIndex === 0}
             variant="outline"
             size="icon-lg"
             aria-label="Foto sebelumnya"
@@ -39,14 +36,12 @@ const MobileActionBar = ({
             <ChevronLeft className="size-7" />
           </Button>
 
-          {isEmptyFolder && currentPhotoIndex !== 0 && (
-            <div className="text-xs">Sebelumnya</div>
-          )}
+          {isEmptyFolder && currentIndex !== 0 && <div className="text-xs">Sebelumnya</div>}
         </div>
 
         {!isEmptyFolder && (
           <div className="flex-1 flex gap-1 overflow-x-auto scrollbar-none">
-            {folders.map((folder) => (
+            {folders.map(folder => (
               <Button
                 key={folder.id}
                 onClick={() => onAssign(currentIndex, folder.id)}
@@ -60,9 +55,7 @@ const MobileActionBar = ({
                   ) : (
                     <Copy className="w-3 h-3 opacity-75" />
                   )}
-                  <span className="block truncate w-full text-center">
-                    {folder.name}
-                  </span>
+                  <span className="block truncate w-full text-center">{folder.name}</span>
                 </span>
               </Button>
             ))}
@@ -70,12 +63,10 @@ const MobileActionBar = ({
         )}
 
         <div className="flex flex-row items-center gap-2">
-          {isEmptyFolder && currentPhotoIndex !== totalPhotos - 1 && (
-            <div className="text-xs">Selanjutnya</div>
-          )}
+          {isEmptyFolder && currentIndex !== totalPhotos - 1 && <div className="text-xs">Selanjutnya</div>}
           <Button
             onClick={() => onNavigate("next")}
-            disabled={currentPhotoIndex === totalPhotos - 1}
+            disabled={currentIndex === totalPhotos - 1}
             variant="outline"
             size="icon-lg"
             aria-label="Foto selanjutnya"
@@ -85,6 +76,6 @@ const MobileActionBar = ({
         </div>
       </div>
     </div>
-  );
-};
-export default MobileActionBar;
+  )
+}
+export default MobileActionBar

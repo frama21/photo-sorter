@@ -1,8 +1,8 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import { VitePWA } from "vite-plugin-pwa";
-import path from "path";
+import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react"
+import tailwindcss from "@tailwindcss/vite"
+import { VitePWA } from "vite-plugin-pwa"
+import path from "path"
 
 export default defineConfig({
   plugins: [
@@ -28,31 +28,31 @@ export default defineConfig({
         background_color: "#0a0f1a",
         icons: [
           { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-        ],
+          { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "any" }
+        ]
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,wasm,svg,png,ico,woff2}"],
         // libraw wasm is ~1.3 MB; raise the precache size limit to cover it.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         cleanupOutdatedCaches: true,
-        navigateFallback: "/index.html",
+        navigateFallback: "/index.html"
       },
       devOptions: {
-        enabled: false,
-      },
-    }),
+        enabled: false
+      }
+    })
   ],
   optimizeDeps: {
-    exclude: ["mediainfo.js"],
+    exclude: ["mediainfo.js"]
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "src") },
+    alias: { "@": path.resolve(__dirname, "src") }
   },
   server: {
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-    },
-  },
-});
+      "Cross-Origin-Embedder-Policy": "require-corp"
+    }
+  }
+})

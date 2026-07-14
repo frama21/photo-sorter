@@ -1,39 +1,32 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react"
 
-import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { AlertTriangleIcon } from "lucide-react";
+import { Button } from "@/components/ui/button"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { AlertTriangleIcon } from "lucide-react"
 
 interface ErrorBoundaryProps {
-  children: ReactNode;
+  children: ReactNode
 }
 
 interface ErrorBoundaryState {
-  error: Error | null;
+  error: Error | null
 }
 
 /**
  * Catches render-time errors so a single failure doesn't blank the whole app.
  */
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { error: null };
+  state: ErrorBoundaryState = { error: null }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { error };
+    return { error }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("[ErrorBoundary]", error, info.componentStack);
+    console.error("[ErrorBoundary]", error, info.componentStack)
   }
 
-  handleReset = () => this.setState({ error: null });
+  handleReset = () => this.setState({ error: null })
 
   render() {
     if (this.state.error) {
@@ -46,8 +39,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               </EmptyMedia>
               <EmptyTitle>Terjadi kesalahan</EmptyTitle>
               <EmptyDescription>
-                {this.state.error.message ||
-                  "Aplikasi mengalami error tak terduga."}
+                {this.state.error.message || "Aplikasi mengalami error tak terduga."}
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent className="flex-row justify-center gap-2">
@@ -58,11 +50,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             </EmptyContent>
           </Empty>
         </div>
-      );
+      )
     }
 
-    return this.props.children;
+    return this.props.children
   }
 }
 
-export default ErrorBoundary;
+export default ErrorBoundary

@@ -7,22 +7,22 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.6.0",
-    "exifreader": "^4.38.1",
+    "exifreader": "^4.41.0",
     "libraw-wasm": "^1.4.0",
     "lodash.debounce": "^4.0.8",
-    "lodash.isempty": "^4.4.0",
     "lucide-react": "^1.14.0",
     "mediainfo.js": "^0.3.7",
     "radix-ui": "^1.4.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "shadcn": "^4.7.0",
     "tailwind-merge": "^3.5.0",
     "tw-animate-css": "^1.4.0",
     "zustand": "^5.0.13"
@@ -31,7 +31,6 @@
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.2.4",
     "@types/lodash.debounce": "^4.0.9",
-    "@types/lodash.isempty": "^4.4.9",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -40,10 +39,23 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "prettier": "^3.9.5",
+    "shadcn": "^4.7.0",
     "tailwindcss": "^4.2.4",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
-    "vite": "^8.0.10",
+    "vite": "^8.1.4",
     "vite-plugin-pwa": "^1.3.0"
+  },
+  "pnpm": {
+    "comment": "Overrides force patched versions of transitive DEV/build-only deps (shadcn CLI tree + vite dev-server tooling). None of these ship to the production image, which serves only the static build via server/. Keeps `pnpm audit` clean.",
+    "overrides": {
+      "hono@<4.12.25": ">=4.12.25",
+      "qs@<6.15.2": ">=6.15.2",
+      "js-yaml@<4.2.0": ">=4.2.0",
+      "@babel/core@<7.29.6": ">=7.29.6 <8",
+      "vite@<8.0.16": ">=8.0.16",
+      "brace-expansion@>=5.0.0 <5.0.6": ">=5.0.6"
+    }
   }
 }

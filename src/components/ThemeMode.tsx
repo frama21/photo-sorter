@@ -1,23 +1,20 @@
-import { useMemo } from "react";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react"
 
-import { Button } from "@/components/ui/button";
-import { useTheme } from "@/components/ThemeProvider";
+import { Button } from "@/components/ui/button"
+import { useTheme } from "@/components/ThemeProvider"
 
 export const ModeToggle = () => {
-  const { setTheme, theme } = useTheme();
+  const { setTheme, theme } = useTheme()
 
-  const isDarkTheme = useMemo(() => {
-    return theme === "dark";
-  }, [theme]);
+  const isDarkTheme = theme === "dark"
 
   const toggleTheme = () => {
     if (isDarkTheme) {
-      setTheme("light");
+      setTheme("light")
     } else {
-      setTheme("dark");
+      setTheme("dark")
     }
-  };
+  }
 
   return (
     <Button variant="outline" size="icon" onClick={toggleTheme}>
@@ -28,7 +25,7 @@ export const ModeToggle = () => {
       )}
       <span className="sr-only">Toggle theme</span>
     </Button>
-  );
-};
+  )
+}
 
-export default ModeToggle;
+export default ModeToggle

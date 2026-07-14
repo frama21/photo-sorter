@@ -1,3 +1,13 @@
+# Single-container deployment — no nginx, no reverse proxy required.
+# The image runs a hardened Node/Express + helmet static server.
+#
+#   docker compose up -d --build   # build & run → http://localhost:8080
+#   docker compose down            # stop
+#
+# For public HTTPS, terminate TLS at your platform's edge (Cloudflare, a load
+# balancer, Caddy/Traefik you already run) and forward to this container;
+# set TRUST_PROXY=1 so HSTS reflects the external scheme.
+
 services:
   web:
     build:
@@ -6,12 +16,47 @@ services:
     image: photo-sorter:latest
     container_name: photo-sorter
     restart: unless-stopped
+    # PID 1 = tini: reaps zombies and forwards signals for clean shutdown.
+    init: true
     ports:
       # host:container — open http://localhost:8080
-      - "8080:80"
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      # Enable ONLY when running behind a trusted TLS-terminating proxy:
+      # TRUST_PROXY: "1"
+
+    # ---- Hardening ----
+    read_only: true # immutable root filesystem
+    tmpfs:
+      - /tmp:size=16m,mode=1777 # the only writable path the runtime needs
+    security_opt:
+      - no-new-privileges:true # block setuid privilege escalation
+    cap_drop:
+      - ALL # the server needs no Linux capabilities
+
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+        reservations:
+          memory: 64M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

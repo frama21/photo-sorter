@@ -1,38 +1,26 @@
-import { useEffect, useCallback, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  AlertCircle,
-  FileImage,
-} from "lucide-react";
+import { useEffect, useCallback, useState } from "react"
+import { ChevronLeft, ChevronRight, Check, AlertCircle, FileImage } from "lucide-react"
 
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
-import { Card, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Spinner } from "@/components/ui/spinner"
+import { Card, CardHeader } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 
-import type { PhotoFile, SortFolder } from "@/types";
+import type { PhotoFile, SortFolder } from "@/types"
 
 interface ContentViewerProps {
-  photo: PhotoFile | null;
-  currentIndex: number;
-  totalPhotos: number;
-  currentFolder: SortFolder | null;
-  rawPreviewUrl: string | null;
-  isDecodingRaw: boolean;
-  onNavigate: (direction: "next" | "prev") => void;
-  onAssign: (index: number, shortcut: string) => void;
-  onJumpUnsorted: () => void;
-  onUndo: () => void;
-  onPreviewError: (photoKey: string) => void;
+  photo: PhotoFile | null
+  currentIndex: number
+  totalPhotos: number
+  currentFolder: SortFolder | null
+  rawPreviewUrl: string | null
+  isDecodingRaw: boolean
+  onNavigate: (direction: "next" | "prev") => void
+  onAssign: (index: number, shortcut: string) => void
+  onJumpUnsorted: () => void
+  onUndo: () => void
+  onPreviewError: (photoKey: string) => void
 }
 
 const ContentViewer = ({
@@ -46,94 +34,83 @@ const ContentViewer = ({
   onAssign,
   onJumpUnsorted,
   onUndo,
-  onPreviewError,
+  onPreviewError
 }: ContentViewerProps) => {
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgRetries, setImgRetries] = useState(0);
-  const [trackedKey, setTrackedKey] = useState(photo?.key);
-  const minSwipeDistance = 50;
+  const [touchStart, setTouchStart] = useState<number | null>(null)
+  const [imgLoaded, setImgLoaded] = useState(false)
+  const [imgRetries, setImgRetries] = useState(0)
+  const [trackedKey, setTrackedKey] = useState(photo?.key)
+  const minSwipeDistance = 50
 
   // Reset load/retry state when the displayed photo changes (render-phase reset
   // per React's "adjusting state when a prop changes" pattern).
   if (photo?.key !== trackedKey) {
-    setTrackedKey(photo?.key);
-    setImgLoaded(false);
-    setImgRetries(0);
+    setTrackedKey(photo?.key)
+    setImgLoaded(false)
+    setImgRetries(0)
   }
 
-  const isRaw = photo?.format.category === "raw";
-  const hasPreview = Boolean(photo?.url) || rawPreviewUrl !== null;
-  const displayUrl = photo?.url || rawPreviewUrl;
-  const isVideo = photo?.format.category === "video";
+  const isRaw = photo?.format.category === "raw"
+  const hasPreview = Boolean(photo?.url) || rawPreviewUrl !== null
+  const displayUrl = photo?.url || rawPreviewUrl
+  const isVideo = photo?.format.category === "video"
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       // Don't hijack keystrokes while the user is typing in a form field.
-      const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
-      ) {
-        return;
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return
       }
 
-      if (e.key === "ArrowRight") onNavigate("next");
-      if (e.key === "ArrowLeft") onNavigate("prev");
-      if (e.key >= "1" && e.key <= "9") onAssign(currentIndex, e.key);
+      if (e.key === "ArrowRight") onNavigate("next")
+      if (e.key === "ArrowLeft") onNavigate("prev")
+      if (e.key >= "1" && e.key <= "9") onAssign(currentIndex, e.key)
       if (e.key === " ") {
-        e.preventDefault();
-        onNavigate("next");
+        e.preventDefault()
+        onNavigate("next")
       }
-      if (e.key === "u" || e.key === "U") onJumpUnsorted();
+      if (e.key === "u" || e.key === "U") onJumpUnsorted()
       if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
-        e.preventDefault();
-        onUndo();
+        e.preventDefault()
+        onUndo()
       }
     },
-    [currentIndex, onNavigate, onAssign, onJumpUnsorted, onUndo],
-  );
+    [currentIndex, onNavigate, onAssign, onJumpUnsorted, onUndo]
+  )
 
   useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [handleKeyDown])
 
   const onTouchStart = (e: React.TouchEvent) => {
-    setTouchStart(e.targetTouches[0].clientX);
-  };
+    setTouchStart(e.targetTouches[0].clientX)
+  }
 
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStart) return;
-    const distance = touchStart - e.changedTouches[0].clientX;
-    if (distance > minSwipeDistance) onNavigate("next");
-    if (distance < -minSwipeDistance) onNavigate("prev");
-    setTouchStart(null);
-  };
+    if (touchStart === null) return
+    const distance = touchStart - e.changedTouches[0].clientX
+    if (distance > minSwipeDistance) onNavigate("next")
+    if (distance < -minSwipeDistance) onNavigate("prev")
+    setTouchStart(null)
+  }
 
   if (!photo) {
     return (
-      <div className="flex items-center justify-center h-[50vh] md:h-[70vh] bg-dark-800 rounded-2xl border border-dark-700">
+      <div className="flex items-center justify-center h-[50vh] md:h-[70vh] bg-card rounded-2xl border border-border">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-          <p className="text-gray-400 text-sm">
-            Tidak ada foto untuk ditampilkan
-          </p>
+          <p className="text-gray-400 text-sm">Tidak ada foto untuk ditampilkan</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
     <Card className="pb-0">
       <CardHeader className="px-0">
-        <div
-          className="relative overflow-hidden select-none"
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
-        >
+        <div className="relative overflow-hidden select-none" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           <div className="flex justify-between items-center pb-3 px-5">
             <div className="flex flex-col gap-2">
               <span className="text-sm truncate">{photo.name}</span>
@@ -162,12 +139,7 @@ const ContentViewer = ({
           <div className="flex items-center justify-center">
             {hasPreview ? (
               isVideo ? (
-                <video
-                  key={photo.key}
-                  src={displayUrl!}
-                  className="w-full max-h-[75vh] object-contain"
-                  controls
-                />
+                <video key={photo.key} src={displayUrl!} className="w-full max-h-[75vh] object-contain" controls />
               ) : (
                 <div className="relative w-full flex items-center justify-center min-h-[40dvh]">
                   {!imgLoaded && (
@@ -187,10 +159,10 @@ const ContentViewer = ({
                       // Some large images fail the first decode; recreate the
                       // object URL and retry instead of needing a manual reload.
                       if (!isRaw && imgRetries < 2) {
-                        setImgRetries((r) => r + 1);
-                        onPreviewError(photo.key);
+                        setImgRetries(r => r + 1)
+                        onPreviewError(photo.key)
                       } else {
-                        setImgLoaded(true); // give up: hide the spinner
+                        setImgLoaded(true) // give up: hide the spinner
                       }
                     }}
                   />
@@ -203,9 +175,7 @@ const ContentViewer = ({
                     <Spinner className="size-12" />
                   </EmptyMedia>
                   <EmptyTitle>Mendecode RAW...</EmptyTitle>
-                  <EmptyDescription>
-                    Ini mungkin memerlukan waktu beberapa detik
-                  </EmptyDescription>
+                  <EmptyDescription>Ini mungkin memerlukan waktu beberapa detik</EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : (
@@ -246,7 +216,7 @@ const ContentViewer = ({
         </div>
       </CardHeader>
     </Card>
-  );
-};
+  )
+}
 
-export default ContentViewer;
+export default ContentViewer
