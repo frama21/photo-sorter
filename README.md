@@ -16,7 +16,14 @@ the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/Fi
   metadata), falling back to the file's modified date.
 - **Sort with shortcuts** — keys `1`–`9` assign the current file to a folder.
 - **Copy or Cut mode** — duplicate into the target folder, or move it there.
-- **Undo** the last sort (`Ctrl/Cmd+Z`), with full copy/move reversal.
+- **Filmstrip & grid view** — a thumbnail strip under the viewer and a
+  toggleable responsive grid (with RAW previews), both showing sort status.
+- **Zoom & pan** — a desktop hover **loupe** magnifier, plus pinch-to-zoom /
+  drag-to-pan and double-tap-to-reset on touch, for pixel-peeping.
+- **Multi-select + batch sort** — select many photos (checkbox, shift-range,
+  "pilih belum disortir") and sort them all into a folder at once — via the
+  folder button or its number shortcut; a batch is a single undo.
+- **Undo** the last action (`Ctrl/Cmd+Z`), covering single and batch sorts.
 - **Jump to next unsorted** (`U`) to skip already-sorted files, plus an
   "all sorted" completion state.
 - **Wide format support** — JPEG/PNG/WebP/AVIF/GIF/BMP/TIFF, SVG, plus RAW
@@ -45,14 +52,15 @@ the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/Fi
 | `←` / `→`      | Previous / next photo       |
 | `Space`        | Next photo                  |
 | `U`            | Jump to next unsorted photo |
-| `Ctrl/Cmd + Z` | Undo last sort              |
+| `Ctrl/Cmd + Z` | Undo last action            |
 
 (Shortcuts are ignored while typing in a text field.)
 
 ## Tech stack
 
 React 19 · TypeScript · Vite · Tailwind CSS v4 · shadcn/Radix UI · Zustand ·
-ExifReader · mediainfo.js · libraw-wasm · vite-plugin-pwa.
+ExifReader · mediainfo.js · libraw-wasm · vite-plugin-pwa. Production server:
+Express + helmet (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
 
 ## Getting started
 
@@ -68,20 +76,32 @@ pnpm lint       # run ESLint
 
 ## Run with Docker
 
-A multi-stage `Dockerfile` builds the app with pnpm and serves the static output
-with nginx (SPA routing, security headers, caching and PWA/WASM MIME types
-included). The final image ships only the built assets — no Node or toolchain.
+Deployment is a **single container** driven by `docker compose` — **no nginx and
+no reverse proxy**. A multi-stage `Dockerfile` builds the app with pnpm, then a
+minimal `node:22-alpine` runtime serves the static output with a tiny hardened
+[Express](https://expressjs.com/) + [helmet](https://helmetjs.github.io/) server
+([`server/index.js`](server/index.js)): strict CSP + security headers,
+cross-origin isolation, SPA routing, immutable asset caching, and correct
+PWA/WASM MIME types. The final image contains only the built assets and three
+audited server dependencies — no toolchain, and it runs as a **non-root** user.
 
 ```bash
 docker compose up -d --build    # build & run → http://localhost:8080
 docker compose down             # stop
 ```
 
+The Compose file is hardened for production out of the box: read-only root
+filesystem, `no-new-privileges`, all Linux capabilities dropped, resource
+limits, log rotation, and a health check. For public HTTPS, terminate TLS at
+your platform edge (Cloudflare, a load balancer, Caddy/Traefik) and forward to
+the container, setting `TRUST_PROXY=1`. See [docs/SECURITY.md](docs/SECURITY.md)
+for the full deployment hardening details.
+
 Or without Compose:
 
 ```bash
 docker build -t photo-sorter .
-docker run -d -p 8080:80 photo-sorter
+docker run -d -p 8080:8080 photo-sorter
 ```
 
 ## How state is stored
@@ -95,13 +115,40 @@ incompatible version is found.
 
 ## Security
 
-- All files are processed **locally** in the browser; nothing is uploaded.
-- A strict **Content-Security-Policy** and a set of security headers
-  (`COOP`/`COEP`, `HSTS`, `X-Frame-Options`, `Referrer-Policy`,
-  `Permissions-Policy`, …) are applied at the hosting layer — see
-  [`docker/nginx.conf`](docker/nginx.conf) / [`docker/security-headers.conf`](docker/security-headers.conf)
-  for the Docker deployment.
+- All files are processed **locally** in the browser; nothing is uploaded and
+  there is no network egress (`connect-src 'self'`).
+- A strict **Content-Security-Policy** and a full set of security headers
+  (`COOP`/`COEP`/`CORP` cross-origin isolation, `HSTS`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, …) are set by the hardened
+  [`server/index.js`](server/index.js).
+- Untrusted input is defended in depth: images are parsed header-only and
+  decodes are bounded/timed-out; the project database is sanitized against
+  prototype pollution; folder names are strictly validated.
+- The dependency tree is **audit-clean** (`pnpm audit` → *No known
+  vulnerabilities found*), and the production image ships only three audited
+  server dependencies.
 - The app is a single view: any unknown URL is normalized back to `/`.
+
+A full security policy, threat model, and audit report is in
+[docs/SECURITY.md](docs/SECURITY.md). Report vulnerabilities privately via
+[GitHub security advisories](https://github.com/frama21/photo-sorter/security/advisories/new)
+(see [`/.well-known/security.txt`](public/.well-known/security.txt)).
+
+## Documentation
+
+Detailed project documentation lives in [`docs/`](docs/):
+
+| Document | Purpose |
+| --- | --- |
+| [PRD.md](docs/PRD.md) | Product requirements — vision, personas, user stories, scope. |
+| [SPEC.md](docs/SPEC.md) | Functional specification — features, formats, behaviors, edge cases. |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture — modules, data flow, deployment. |
+| [DESIGN.md](docs/DESIGN.md) | Software design — key decisions, rationale, core algorithms. |
+| [TDD.md](docs/TDD.md) | Technical design — module internals, DB schema, sequence diagrams, limits. |
+| [UI-Design.md](docs/UI-Design.md) | UI/UX — design tokens, layout, components, theming, accessibility. |
+| [PRINCIPLES.md](docs/PRINCIPLES.md) | Engineering & product principles (Clean Code · YAGNI · DRY · KISS · Semantic · A11y). |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deployment guide — Docker Compose, the server, and Firebase Hosting. |
+| [SECURITY.md](docs/SECURITY.md) | Security policy, threat model, and audit report. |
 
 ## Changelog
 

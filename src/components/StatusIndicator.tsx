@@ -1,24 +1,20 @@
-import { CheckCircle2, XCircle } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, XCircle } from "lucide-react"
+import { Spinner } from "@/components/ui/spinner"
+import { Badge } from "@/components/ui/badge"
 
-import isEmpty from "lodash.isempty";
-
-import { useStatusStore } from "@/stores/statusStore";
+import { useStatusStore } from "@/stores/statusStore"
 
 const StatusIndicator = () => {
-  const { statuses } = useStatusStore(); // ← Zustand
+  const { statuses } = useStatusStore()
+  const currentStatus = statuses[0]
 
-  // Status display di navbar
-  const currentStatus = statuses[0]; // Ambil status terbaru
-
-  const isStatusLoading = currentStatus?.type === "loading";
-  const isStatusSuccess = currentStatus?.type === "success";
-  const isStatusError = currentStatus?.type === "error";
+  const isStatusLoading = currentStatus?.type === "loading"
+  const isStatusSuccess = currentStatus?.type === "success"
+  const isStatusError = currentStatus?.type === "error"
 
   return (
-    <div className="flex items-center justify-center">
-      {!isEmpty(currentStatus) && (
+    <div className="flex items-center justify-center" role="status" aria-live="polite" aria-atomic="true">
+      {currentStatus && (
         <Badge>
           {isStatusLoading && <Spinner />}
           {isStatusSuccess && <CheckCircle2 className="w-3 h-3" />}
@@ -27,7 +23,7 @@ const StatusIndicator = () => {
         </Badge>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default StatusIndicator;
+export default StatusIndicator

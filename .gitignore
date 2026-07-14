@@ -23,9 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Firebase Hosting config (firebase.json + .firebaserc) is version-controlled
+# like the Dockerfile — it carries the production security headers. Only the
+# local build cache and debug logs are ignored.
 .firebase
-.firebaserc
-firebase.json
 firebase-debug.log
 
 .claude

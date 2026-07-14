@@ -1,20 +1,10 @@
-import { useState } from "react";
-import {
-  Plus,
-  Trash2,
-  FolderOpen,
-  Keyboard,
-  Scissors,
-  Copy,
-  Undo2,
-  SkipForward,
-} from "lucide-react";
+import { useState } from "react"
+import { Plus, Trash2, FolderOpen, Scissors, Copy, Undo2, SkipForward } from "lucide-react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Item,
   ItemMedia,
@@ -22,23 +12,23 @@ import {
   ItemActions,
   ItemContent,
   ItemDescription,
-  ItemTitle,
-} from "@/components/ui/item";
-import { Button } from "@/components/ui/button";
+  ItemTitle
+} from "@/components/ui/item"
+import { Button } from "@/components/ui/button"
 
-import type { SortFolder, MoveMode } from "@/types";
+import type { SortFolder, MoveMode } from "@/types"
 
 interface FolderManagerProps {
-  folders: SortFolder[];
-  moveMode: MoveMode;
-  onAdd: (name: string) => Promise<void>;
-  onRemove: (folderId: string) => Promise<void>;
-  onAssign: (photoIndex: number, folderId: string) => Promise<void>;
-  onMoveModeChange: (mode: MoveMode) => void;
-  currentIndex: number;
-  canUndo: boolean;
-  onUndo: () => void;
-  onJumpUnsorted: () => void;
+  folders: SortFolder[]
+  moveMode: MoveMode
+  onAdd: (name: string) => Promise<void>
+  onRemove: (folderId: string) => Promise<void>
+  onAssign: (photoIndex: number, folderId: string) => Promise<void>
+  onMoveModeChange: (mode: MoveMode) => void
+  currentIndex: number
+  canUndo: boolean
+  onUndo: () => void
+  onJumpUnsorted: () => void
 }
 
 const FolderManager = ({
@@ -51,18 +41,18 @@ const FolderManager = ({
   currentIndex,
   canUndo,
   onUndo,
-  onJumpUnsorted,
+  onJumpUnsorted
 }: FolderManagerProps) => {
-  const [newFolderName, setNewFolderName] = useState("");
-  const totalFolder = folders.length ?? 0;
+  const [newFolderName, setNewFolderName] = useState("")
+  const totalFolder = folders.length
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newFolderName.trim()) {
-      await onAdd(newFolderName.trim());
-      setNewFolderName("");
+  const handleAdd = async () => {
+    const name = newFolderName.trim()
+    if (name) {
+      await onAdd(name)
+      setNewFolderName("")
     }
-  };
+  }
 
   return (
     <Card size="sm" className="w-full">
@@ -79,20 +69,14 @@ const FolderManager = ({
               <ItemTitle>Mode Pemindahan</ItemTitle>
             </ItemContent>
             <ItemActions>
-              <ItemDescription>
+              <div className="w-full">
                 <Tabs defaultValue={moveMode} className="w-full">
                   <TabsList className="w-full">
-                    <TabsTrigger
-                      value="copy"
-                      onClick={() => onMoveModeChange("copy")}
-                    >
+                    <TabsTrigger value="copy" onClick={() => onMoveModeChange("copy")}>
                       <Copy className="w-3.5 h-3.5" />
                       Copy (Duplikat)
                     </TabsTrigger>
-                    <TabsTrigger
-                      value="cut"
-                      onClick={() => onMoveModeChange("cut")}
-                    >
+                    <TabsTrigger value="cut" onClick={() => onMoveModeChange("cut")}>
                       <Scissors className="w-3.5 h-3.5" />
                       Cut (Pindah)
                     </TabsTrigger>
@@ -100,24 +84,27 @@ const FolderManager = ({
                   <TabsContent value="copy">
                     File akan DIDUPLIKAT ke folder target (file asli tetap ada)
                   </TabsContent>
-                  <TabsContent value="cut">
-                    File akan DIPINDAHKAN ke folder target (file asli dihapus)
-                  </TabsContent>
+                  <TabsContent value="cut">File akan DIPINDAHKAN ke folder target (file asli dihapus)</TabsContent>
                 </Tabs>
-              </ItemDescription>
+              </div>
             </ItemActions>
           </Item>
           <Item>
             <ItemContent>
               <ItemTitle className="w-full">
                 <Field>
-                  <FieldLabel htmlFor="input-demo-api-key">
-                    Folder {totalFolder ? `(${totalFolder})` : ""}
-                  </FieldLabel>
+                  <FieldLabel htmlFor="new-folder-name">Folder {totalFolder ? `(${totalFolder})` : ""}</FieldLabel>
                   <Input
+                    id="new-folder-name"
                     placeholder="Nama Folder"
                     value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onChange={e => setNewFolderName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        handleAdd()
+                      }
+                    }}
                   />
                 </Field>
               </ItemTitle>
@@ -127,6 +114,7 @@ const FolderManager = ({
                 <Button
                   className="mt-7"
                   size="icon"
+                  aria-label="Tambah folder"
                   disabled={!newFolderName.trim()}
                   onClick={handleAdd}
                 >
@@ -139,7 +127,7 @@ const FolderManager = ({
 
         <div className="flex flex-col items-center pt-3 pb-5">
           <ItemGroup className="gap-5">
-            {folders.map((folder) => (
+            {folders.map(folder => (
               <Item key={folder.id} variant="outline" role="listitem">
                 <ItemMedia>
                   <span
@@ -151,30 +139,23 @@ const FolderManager = ({
                 <ItemContent>
                   <ItemTitle className="line-clamp-1">{folder.name}</ItemTitle>
                   <ItemDescription>
-                    {folder.shortcut
-                      ? `Tekan "${folder.shortcut}"`
-                      : "Klik untuk sortir"}
+                    {folder.shortcut ? `Tekan "${folder.shortcut}"` : "Klik untuk sortir"}
                   </ItemDescription>
                 </ItemContent>
                 <ItemContent className="flex-none text-center">
-                  <ItemDescription>
-                    <div className="flex flex-row items-center gap-3">
-                      <Button
-                        className="cursor-pointer"
-                        onClick={() => onAssign(currentIndex, folder.id)}
-                      >
-                        Sortir
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        aria-label={`Hapus folder ${folder.name}`}
-                        onClick={() => onRemove(folder.id)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </ItemDescription>
+                  <div className="flex flex-row items-center gap-3">
+                    <Button className="cursor-pointer" onClick={() => onAssign(currentIndex, folder.id)}>
+                      Sortir
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      aria-label={`Hapus folder ${folder.name}`}
+                      onClick={() => onRemove(folder.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </ItemContent>
               </Item>
             ))}
@@ -183,41 +164,18 @@ const FolderManager = ({
 
         {/* Quick actions */}
         <div className="flex flex-row gap-2 pb-3">
-          <Button
-            variant="outline"
-            className="flex-1"
-            disabled={!canUndo}
-            onClick={onUndo}
-          >
+          <Button variant="outline" className="flex-1" disabled={!canUndo} onClick={onUndo}>
             <Undo2 className="w-3.5 h-3.5" />
             Undo
           </Button>
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={onJumpUnsorted}
-          >
+          <Button variant="outline" className="flex-1" onClick={onJumpUnsorted}>
             <SkipForward className="w-3.5 h-3.5" />
             Belum disortir
           </Button>
         </div>
-
-        {/* Tips */}
-        {folders.length > 0 && (
-          <div className="flex flex-col items-center">
-            <Alert>
-              <Keyboard className="w-3.5 h-3.5 text-gray-400" />
-              <AlertTitle>Shortcut</AlertTitle>
-              <AlertDescription>
-                1-9 sortir • ← → navigasi • Spasi next • U lompat ke belum
-                disortir • Ctrl+Z undo • Geser di mobile
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
       </CardContent>
     </Card>
-  );
-};
+  )
+}
 
-export default FolderManager;
+export default FolderManager

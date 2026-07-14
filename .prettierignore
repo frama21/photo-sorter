@@ -1,0 +1,17 @@
+# Dependencies & build output
+node_modules
+server/node_modules
+dist
+
+# Lockfiles are managed by the package managers
+pnpm-lock.yaml
+server/package-lock.json
+
+# Prose docs (README, CHANGELOG, docs/) are hand-formatted with tables and
+# mermaid diagrams — kept out of the code formatter.
+*.md
+
+# Tooling / local state
+.claude
+.firebase
+firebase-debug.log

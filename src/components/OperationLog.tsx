@@ -1,25 +1,18 @@
-import { Check, X, Scissors, Copy, Logs } from "lucide-react";
+import { Check, X, Scissors, Copy, Logs } from "lucide-react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Item,
-  ItemMedia,
-  ItemGroup,
-  ItemContent,
-  ItemDescription,
-  ItemTitle,
-} from "@/components/ui/item";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Item, ItemMedia, ItemGroup, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item"
 
-import type { SortOperation } from "@/types";
+import type { SortOperation } from "@/types"
 
 interface OperationLogProps {
-  operations: SortOperation[];
+  operations: SortOperation[]
 }
 
 const OperationLog = ({ operations }: OperationLogProps) => {
-  if (operations.length === 0) return null;
+  if (operations.length === 0) return null
 
-  const recentOps = operations.slice(-3).reverse();
+  const recentOps = operations.slice(-3).reverse()
 
   return (
     <Card size="sm" className="w-full">
@@ -32,15 +25,13 @@ const OperationLog = ({ operations }: OperationLogProps) => {
       <CardContent>
         <div className="flex flex-col items-center pt-3 pb-5">
           <ItemGroup className="gap-5">
-            {recentOps.map((op) => (
+            {recentOps.map(op => (
               <Item
                 key={op.timestamp}
                 variant="outline"
                 role="listitem"
                 className={`flex items-center ${
-                  op.success
-                    ? "bg-green-500/10 border border-green-700"
-                    : "bg-red-500/10 border border-red-700"
+                  op.success ? "bg-green-500/10 border border-green-700" : "bg-red-500/10 border border-red-700"
                 }`}
               >
                 <ItemMedia>
@@ -51,22 +42,16 @@ const OperationLog = ({ operations }: OperationLogProps) => {
                   )}
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle className="line-clamp-1">
-                    {op.photoName}
-                  </ItemTitle>
+                  <ItemTitle className="line-clamp-1">{op.photoName}</ItemTitle>
                   <ItemDescription>
-                    <div className="flex items-center gap-1">
-                      {op.mode === "cut" ? (
-                        <Scissors className="w-3 h-3" />
-                      ) : (
-                        <Copy className="w-3 h-3" />
-                      )}
+                    <span className="flex items-center gap-1">
+                      {op.mode === "cut" ? <Scissors className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       <span className="line-clamp-1">
                         {op.success
                           ? `${op.mode === "cut" ? "Cut" : "Copy"} → ${op.folderName}`
                           : op.error || "Gagal"}
                       </span>
-                    </div>
+                    </span>
                   </ItemDescription>
                 </ItemContent>
               </Item>
@@ -75,7 +60,7 @@ const OperationLog = ({ operations }: OperationLogProps) => {
         </div>
       </CardContent>
     </Card>
-  );
-};
+  )
+}
 
-export default OperationLog;
+export default OperationLog
