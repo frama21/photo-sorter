@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   FolderOpen,
   ImageOff,
@@ -61,6 +61,24 @@ const App = () => {
   // the WHOLE selection; otherwise it sorts just the given (current) photo.
   const assignToFolder = (index: number, folderId: string) =>
     fs.selectedKeys.size > 0 ? fs.batchAssignToFolder(folderId) : fs.assignPhotoToFolder(index, folderId)
+
+  // Grid-only shortcuts: Ctrl/Cmd+A toggles select-all, Escape clears selection.
+  const { toggleSelectAll, clearSelection } = fs
+  useEffect(() => {
+    if (viewMode !== "grid") return
+    const onKeyDown = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      if ((e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
+        e.preventDefault()
+        toggleSelectAll()
+      } else if (e.key === "Escape") {
+        clearSelection()
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [viewMode, toggleSelectAll, clearSelection])
 
   return (
     <div className="min-h-screen text-gray-900 dark:text-white transition-colors duration-300">

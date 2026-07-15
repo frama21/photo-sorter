@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.0] - 2026-07-15
+
+### Added
+
+- Grid view lazily renders thumbnails and appends more on scroll (with a
+  loader), keeping folders of thousands of photos light.
+- Grid keyboard shortcuts: `Ctrl/Cmd+A` toggles select-all, `Shift+Click`
+  toggles a selection range, and `Esc` clears the selection.
+
+### Changed
+
+- The filmstrip and grid now scroll inside a shadcn `ScrollArea`.
+
 ## [2.1.0] - 2026-07-14
 
 ### Security
