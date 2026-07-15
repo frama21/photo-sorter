@@ -50,7 +50,7 @@ const Thumbnail = ({
     >
       <button
         type="button"
-        onClick={() => onOpen(index)}
+        onClick={e => (e.shiftKey ? onToggleSelect(index, true) : onOpen(index))}
         aria-label={`Lihat ${photo.name}`}
         aria-current={isCurrent ? "true" : undefined}
         className="block h-full w-full cursor-pointer"

@@ -161,6 +161,7 @@ export interface FileSystemHook {
   selectRangeTo: (photoIndex: number) => void
   clearSelection: () => void
   selectAllUnsorted: () => void
+  toggleSelectAll: () => void
   batchAssignToFolder: (folderId: string) => Promise<void>
   getCurrentPhoto: () => PhotoFile | null
   getCurrentFolder: () => { name: string; color: string } | null
@@ -904,11 +905,17 @@ const useFileSystem = (): FileSystemHook => {
       const anchor = selectionAnchorRef.current ?? photoIndex
       const lo = Math.min(anchor, photoIndex)
       const hi = Math.max(anchor, photoIndex)
+      const target = photos[photoIndex]
       setSelectedKeys(prev => {
+        // Toggle: if the clicked photo is already selected, deselect the whole
+        // range; otherwise select it. Repeating shift-click flips it back.
+        const shouldSelect = target ? !prev.has(target.key) : true
         const next = new Set(prev)
         for (let i = lo; i <= hi; i++) {
           const p = photos[i]
-          if (p) next.add(p.key)
+          if (!p) continue
+          if (shouldSelect) next.add(p.key)
+          else next.delete(p.key)
         }
         return next
       })
@@ -927,6 +934,12 @@ const useFileSystem = (): FileSystemHook => {
     for (const p of photos) if (!sortedPhotos[p.key]) next.add(p.key)
     setSelectedKeys(next)
   }, [photos, sortedPhotos])
+
+  // Toggle: select every photo, or clear if they are all already selected.
+  const toggleSelectAll = useCallback(() => {
+    setSelectedKeys(prev => (prev.size >= photos.length ? new Set() : new Set(photos.map(p => p.key))))
+    selectionAnchorRef.current = null
+  }, [photos])
 
   // Recreate a photo's object URL after an <img> load error. A fresh URL forces
   // the browser to re-fetch/re-decode (some large images fail the first decode).
@@ -1005,6 +1018,7 @@ const useFileSystem = (): FileSystemHook => {
     selectRangeTo,
     clearSelection,
     selectAllUnsorted,
+    toggleSelectAll,
     batchAssignToFolder,
     getCurrentPhoto,
     getCurrentFolder,

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 
 import Thumbnail from "@/components/Thumbnail"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import type { PhotoFile, SortedMapping } from "@/types"
 
 interface FilmstripProps {
@@ -38,23 +39,25 @@ const Filmstrip = ({
   if (photos.length === 0) return null
 
   return (
-    <ul aria-label="Filmstrip foto" className="flex list-none gap-2 overflow-x-auto rounded-lg border bg-card p-2">
-      {photos.map((photo, i) => (
-        <li key={photo.key} ref={i === currentIndex ? currentRef : undefined}>
-          <Thumbnail
-            photo={photo}
-            index={i}
-            size="sm"
-            isCurrent={i === currentIndex}
-            isSelected={selectedKeys.has(photo.key)}
-            folderMeta={getFolderMeta(sortedPhotos[photo.key])}
-            rawPreviewUrl={rawPreviewUrls.get(photo.key)}
-            onOpen={onOpen}
-            onToggleSelect={onToggleSelect}
-          />
-        </li>
-      ))}
-    </ul>
+    <ScrollArea orientation="horizontal" className="w-full rounded-lg border bg-card">
+      <ul aria-label="Filmstrip foto" className="flex list-none gap-2 p-2">
+        {photos.map((photo, i) => (
+          <li key={photo.key} ref={i === currentIndex ? currentRef : undefined}>
+            <Thumbnail
+              photo={photo}
+              index={i}
+              size="sm"
+              isCurrent={i === currentIndex}
+              isSelected={selectedKeys.has(photo.key)}
+              folderMeta={getFolderMeta(sortedPhotos[photo.key])}
+              rawPreviewUrl={rawPreviewUrls.get(photo.key)}
+              onOpen={onOpen}
+              onToggleSelect={onToggleSelect}
+            />
+          </li>
+        ))}
+      </ul>
+    </ScrollArea>
   )
 }
 

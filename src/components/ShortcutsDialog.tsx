@@ -47,6 +47,24 @@ const SHORTCUTS: Shortcut[] = [
       </KbdGroup>
     ),
     label: "Batalkan (undo) aksi terakhir"
+  },
+  {
+    keys: (
+      <KbdGroup>
+        <Kbd>Ctrl</Kbd>
+        <Kbd>A</Kbd>
+      </KbdGroup>
+    ),
+    label: "Pilih / batal pilih semua (mode grid)"
+  },
+  {
+    keys: (
+      <span className="flex items-center gap-1">
+        <Kbd>Shift</Kbd>
+        <span className="text-xs text-muted-foreground">+ Klik</span>
+      </span>
+    ),
+    label: "Pilih / batal pilih rentang (grid / filmstrip)"
   }
 ]
 
