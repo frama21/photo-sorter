@@ -15,8 +15,8 @@ export default defineConfig({
       injectRegister: false,
       manifest: {
         id: "/",
-        name: "Photo Sorter — Sortir Foto & Video Lokal",
-        short_name: "Photo Sorter",
+        name: "Nata Photo — Sortir Foto & Video Lokal",
+        short_name: "Nata Photo",
         description:
           "Sortir foto dan video lokal ke folder dengan cepat lewat shortcut keyboard. Berjalan sepenuhnya di browser tanpa upload.",
         lang: "id",

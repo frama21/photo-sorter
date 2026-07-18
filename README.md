@@ -1,4 +1,4 @@
-# Photo Sorter
+# Nata Photo
 
 A fast, **100% client-side** photo & video sorter that runs in the browser. Open
 a local folder, preview each file, and copy/move it into sort sub-folders with
@@ -14,7 +14,11 @@ the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/Fi
   your machine.
 - **Chronological order** — files are sorted by capture date/time (EXIF / video
   metadata), falling back to the file's modified date.
-- **Sort with shortcuts** — keys `1`–`9` assign the current file to a folder.
+- **Sort with shortcuts** — press a folder's key to assign the current file to it.
+  Each folder's shortcut is **user-customizable** (click its badge, press a key);
+  reserved app keys and modifier combos are rejected, and duplicates are blocked.
+- **Bilingual UI (English + Indonesian)** — a navbar language toggle switches the
+  whole interface; the choice is remembered (localStorage `lumen-storage`).
 - **Copy or Cut mode** — duplicate into the target folder, or move it there.
 - **Filmstrip & grid view** — a thumbnail strip under the viewer and a
   toggleable responsive grid (with RAW previews), both showing sort status.
@@ -35,32 +39,52 @@ the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/Fi
   date) and `mediainfo.js` for video (duration, fps, codecs, bitrate). Metadata
   is extracted lazily on demand and cached.
 - **Auto-persisted project state** — folders, sort mappings, mode, and the
-  recent operation log are saved to `photo-sorter-db.json` inside the chosen
+  recent operation log are saved to `nata-photo-db.json` inside the chosen
   folder and restored on the next visit.
 - **Filename-collision safe** — copies/moves never silently overwrite; a
   `_1`, `_2`, … suffix is added when a name already exists.
 - **Installable PWA** — install to your desktop/home screen and keep working
   offline thanks to a precaching service worker.
+- **Tooltips everywhere** — every icon-only control has a tooltip so its purpose
+  is discoverable.
 - **Responsive** — desktop sidebar layout and a mobile action bar with swipe
   navigation. Light/dark themes.
 
 ## Keyboard shortcuts
 
-| Key            | Action                      |
-| -------------- | --------------------------- |
-| `1`–`9`        | Sort into folder 1–9        |
-| `←` / `→`      | Previous / next photo       |
-| `Space`        | Next photo                  |
-| `U`            | Jump to next unsorted photo |
-| `Ctrl/Cmd + Z` | Undo last action            |
+| Key                | Action                                                   |
+| ------------------ | -------------------------------------------------------- |
+| _folder key_       | Sort into a folder (default `1`–`9`, per-folder customizable) |
+| `←` / `→`          | Previous / next photo                                    |
+| `Space`            | Next photo                                               |
+| `U`                | Jump to next unsorted photo                              |
+| `Ctrl/Cmd + Z`     | Undo last action                                         |
+| `Ctrl/Cmd + A`     | Select / deselect all (grid mode)                        |
+| `Shift + Click`    | Select / deselect a range (grid / filmstrip)             |
+| `Esc`              | Clear selection (grid mode)                              |
 
+Folder shortcuts are editable — click a folder's badge and press a key. Any key
+works except reserved actions (arrows, `Space`, `U`, `Esc`), modifier
+combinations (e.g. `Ctrl+P`), and keys already used by another folder.
 (Shortcuts are ignored while typing in a text field.)
 
 ## Tech stack
 
 React 19 · TypeScript · Vite · Tailwind CSS v4 · shadcn/Radix UI · Zustand ·
-ExifReader · mediainfo.js · libraw-wasm · vite-plugin-pwa. Production server:
-Express + helmet (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+i18next / react-i18next · ExifReader · mediainfo.js · libraw-wasm ·
+vite-plugin-pwa. The `src/` tree follows **Feature-Sliced Design**
+(`app / pages / features / shared`). Production server: Express + helmet (see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+
+## Engineering principles
+
+Nata Photo is built and reviewed against an explicit set of principles —
+privacy/local-first, zero-trust input, security-by-default, data safety,
+resilience, performance, accessibility, and simplicity — plus craft principles
+(Clean Code · YAGNI · DRY · KISS · Semantic · A11y) and longevity principles
+(**Readable · Understandable · Reusable · Scalable · Maintainable · Easy to Hand
+Over**) realized through the Feature-Sliced Design structure. The full,
+testable statements live in [docs/PRINCIPLES.md](docs/PRINCIPLES.md).
 
 ## Getting started
 
@@ -100,13 +124,13 @@ for the full deployment hardening details.
 Or without Compose:
 
 ```bash
-docker build -t photo-sorter .
-docker run -d -p 8080:8080 photo-sorter
+docker build -t nata-photo .
+docker run -d -p 8080:8080 nata-photo
 ```
 
 ## How state is stored
 
-A single JSON file, `photo-sorter-db.json`, is written to the folder you open.
+A single JSON file, `nata-photo-db.json`, is written to the folder you open.
 It contains the sort folders, the per-file sort mapping (keyed by file name),
 the move mode, the recent operation log, and a metadata cache. Deleting this
 file resets the project; the app recreates it on the next open. The database
@@ -131,7 +155,7 @@ incompatible version is found.
 
 A full security policy, threat model, and audit report is in
 [docs/SECURITY.md](docs/SECURITY.md). Report vulnerabilities privately via
-[GitHub security advisories](https://github.com/frama21/photo-sorter/security/advisories/new)
+[GitHub security advisories](https://github.com/frama21/nata-photo/security/advisories/new)
 (see [`/.well-known/security.txt`](public/.well-known/security.txt)).
 
 ## Documentation

@@ -1,5 +1,5 @@
 // ============================================================
-// Photo Sorter — production static server
+// Nata Photo — production static server
 //
 // A tiny, hardened Node/Express server that serves the pre-built
 // single-page app (dist/). It replaces the previous nginx layer so the
@@ -187,12 +187,12 @@ app.use((req, res) => {
 })
 
 const server = app.listen(PORT, HOST, () => {
-  console.log(`[photo-sorter] serving ${DIST_DIR} on http://${HOST}:${PORT}`)
+  console.log(`[nata-photo] serving ${DIST_DIR} on http://${HOST}:${PORT}`)
 })
 
 // Graceful shutdown so `docker stop` / orchestrator SIGTERM drains cleanly.
 const shutdown = signal => {
-  console.log(`[photo-sorter] ${signal} received, shutting down`)
+  console.log(`[nata-photo] ${signal} received, shutting down`)
   server.close(() => process.exit(0))
   // Force-exit if connections don't drain in time.
   setTimeout(() => process.exit(1), 10000).unref()

@@ -1,7 +1,7 @@
-# Photo Sorter — security contact (RFC 9116)
+# Nata Photo — security contact (RFC 9116)
 # Report vulnerabilities privately; please do not open a public issue.
 
-Contact: https://github.com/frama21/photo-sorter/security/advisories/new
+Contact: https://github.com/frama21/nata-photo/security/advisories/new
 Expires: 2027-01-01T00:00:00.000Z
 Preferred-Languages: id, en
-Policy: https://github.com/frama21/photo-sorter/blob/main/docs/SECURITY.md
+Policy: https://github.com/frama21/nata-photo/blob/main/docs/SECURITY.md

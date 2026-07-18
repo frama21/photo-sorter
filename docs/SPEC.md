@@ -1,6 +1,6 @@
-# Photo Sorter — Functional Specification
+# Nata Photo — Functional Specification
 
-The authoritative functional specification for Photo Sorter: a 100% client-side, browser-based photo and video sorter. This document defines *what* the application does — its scope, behaviours, limits, edge cases, and acceptance criteria — independent of implementation detail.
+The authoritative functional specification for Nata Photo: a 100% client-side, browser-based photo and video sorter. This document defines *what* the application does — its scope, behaviours, limits, edge cases, and acceptance criteria — independent of implementation detail.
 
 Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
@@ -10,7 +10,7 @@ Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
 ## 1. Overview & scope
 
-Photo Sorter is a single-view web application that lets a user triage a local folder full of photos and videos and file each item into named sub-folders using single-key shortcuts. Everything runs in the browser: files are read and written directly on the user's disk through the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) (`window.showDirectoryPicker`). Nothing is uploaded, there is no backend for user data, no telemetry, and no network egress of file contents.
+Nata Photo is a single-view web application that lets a user triage a local folder full of photos and videos and file each item into named sub-folders using single-key shortcuts. Everything runs in the browser: files are read and written directly on the user's disk through the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) (`window.showDirectoryPicker`). Nothing is uploaded, there is no backend for user data, no telemetry, and no network egress of file contents.
 
 The typical workflow:
 
@@ -44,13 +44,13 @@ See [§13 Non-goals](#13-non-goals). Broadly: no uploading, no recursion into su
 - [SECURITY.md](SECURITY.md) — threat model, CSP, headers, and audit results.
 - [DEPLOYMENT.md](DEPLOYMENT.md) — container, server, and hosting.
 - Primary source of truth in code:
-  [src/hooks/useFileSystem.ts](../src/hooks/useFileSystem.ts),
-  [src/config/fileFormats.ts](../src/config/fileFormats.ts),
-  [src/services/dbService.ts](../src/services/dbService.ts),
-  [src/services/exifService.ts](../src/services/exifService.ts),
-  [src/services/rawDecoder.ts](../src/services/rawDecoder.ts),
-  [src/lib/safeName.ts](../src/lib/safeName.ts),
-  [src/types/index.ts](../src/types/index.ts).
+  [src/features/file-system/model/useFileSystem.ts](../src/features/file-system/model/useFileSystem.ts),
+  [src/shared/config/fileFormats.ts](../src/shared/config/fileFormats.ts),
+  [src/shared/services/dbService.ts](../src/shared/services/dbService.ts),
+  [src/shared/services/exifService.ts](../src/shared/services/exifService.ts),
+  [src/shared/services/rawDecoder.ts](../src/shared/services/rawDecoder.ts),
+  [src/shared/lib/safeName.ts](../src/shared/lib/safeName.ts),
+  [src/shared/types/index.ts](../src/shared/types/index.ts).
 
 ---
 
@@ -60,15 +60,15 @@ See [§13 Non-goals](#13-non-goals). Broadly: no uploading, no recursion into su
 | --- | --- |
 | **Opened folder / root** | The single directory the user selects with the OS folder picker. All scanning, sort sub-folders, and the project database live here. Represented by a `FileSystemDirectoryHandle`. |
 | **Photo / file / item** | Any supported image *or* video at the top level of the opened folder. In the UI these are all "foto". Internally modelled as a `PhotoFile`. |
-| **Sort folder** | A sub-folder created inside the opened folder that files are sorted into. Modelled as a `SortFolder` with a colour and an optional `1`–`9` shortcut. |
-| **Shortcut** | A digit key `1`–`9` bound to one sort folder. Only the first nine folders receive a shortcut. |
+| **Sort folder** | A sub-folder created inside the opened folder that files are sorted into. Modelled as a `SortFolder` with a colour and an optional shortcut key. |
+| **Shortcut** | A single key bound to one sort folder (defaults to `1`–`9` for the first nine folders, and is **user-customizable** — see FR-SORT-6). Any key is accepted except reserved app actions, modifier combinations, and keys already used by another folder. |
 | **Copy mode** | Assigning a file duplicates it into the target folder; the original stays in the root. |
 | **Cut mode** | Assigning a file **moves** it into the target folder; it is removed from the root. |
 | **Key** | The stable identifier used for persisted mappings: the file **name** (e.g. `IMG_0421.CR2`). Not the array index. |
 | **Sorted mapping** | The `{ fileName -> folderId }` record of which folder each file was filed into. |
 | **Operation** | A fully serializable, handle-free record of one sort action (`SortOperation`) shown in the operation log. |
 | **Undo stack** | An in-memory (non-persisted) stack of up to 20 reversible sort actions. |
-| **Project database** | A single JSON file, `photo-sorter-db.json`, written inside the opened folder. Schema version `2.0`. |
+| **Project database** | A single JSON file, `nata-photo-db.json`, written inside the opened folder. Schema version `2.0`. |
 | **Previewable** | A format flag indicating the browser can render the file directly in an `<img>`/`<video>` element. RAW and HEIC/HEIF are non-previewable (RAW is handled by a decoder; HEIC has no in-browser decode). |
 | **Embedded preview** | A JPEG image stored inside a RAW file by the camera, used as the fast/sharp preview source. |
 | **PWA** | Progressive Web App: the installable, offline-capable packaging of the app. |
@@ -85,7 +85,7 @@ See [§13 Non-goals](#13-non-goals). Broadly: no uploading, no recursion into su
 | **Secure context** | Must be served over HTTPS (or `http://localhost`). The File System Access API and the service worker require a secure context. Cross-origin isolation (COOP/COEP) is also enabled by the host — see [SECURITY.md](SECURITY.md). |
 | **Native move optimization** | When `FileSystemFileHandle.move()` is available, Cut uses it; otherwise the app falls back to copy-then-delete (functionally identical, slightly slower). |
 | **RAW decode** | Uses WebAssembly (`libraw-wasm`) and Web Workers; requires `wasm-unsafe-eval` in the CSP (granted by the host) and worker support. |
-| **Language** | The user interface is Indonesian (`lang="id"`). Code, comments, README, and this document are English. |
+| **Language** | The user interface is **bilingual — English (default) and Indonesian** — switchable via a navbar toggle and persisted to `localStorage` (`lumen-storage`); `<html lang>` tracks the choice. Code, comments, README, and this document are English. |
 
 **FR-PLATFORM-1.** On a browser without `showDirectoryPicker`, opening a folder MUST fail gracefully with a visible Indonesian error toast and message: *"Browser tidak mendukung File System Access API"* / *"…Gunakan Chrome/Edge/Opera terbaru."* No exception may reach the user unhandled.
 
@@ -93,7 +93,7 @@ See [§13 Non-goals](#13-non-goals). Broadly: no uploading, no recursion into su
 
 ## 4. Supported file formats
 
-The format registry lives in [src/config/fileFormats.ts](../src/config/fileFormats.ts). A file is **supported** (i.e. shown in the sorter) if its lowercased extension matches any entry below. `previewable` indicates whether the browser can render it directly. Extension matching is case-insensitive.
+The format registry lives in [src/shared/config/fileFormats.ts](../src/shared/config/fileFormats.ts). A file is **supported** (i.e. shown in the sorter) if its lowercased extension matches any entry below. `previewable` indicates whether the browser can render it directly. Extension matching is case-insensitive.
 
 ### 4.1 Standard raster images
 
@@ -150,7 +150,7 @@ All previewable via the native `<video>` element with controls.
 | MPEG Transport Stream | `.ts` | video/mp2t | Yes | |
 | 3GP | `.3gp` `.3g2` | video/3gpp, video/3gpp2 | Yes | |
 
-> Note: `previewable: true` means Photo Sorter *offers* a native `<video>` player. Actual playback of container/codec combinations (AVI, WMV, MKV, FLV) is subject to the browser/OS decoders and may not play everywhere. This does not affect sorting.
+> Note: `previewable: true` means Nata Photo *offers* a native `<video>` player. Actual playback of container/codec combinations (AVI, WMV, MKV, FLV) is subject to the browser/OS decoders and may not play everywhere. This does not affect sorting.
 
 ### 4.5 Other
 
@@ -188,7 +188,7 @@ Requirements are grouped by feature area. Each area lists behaviour, limits, and
 
 ### 5.3 Sorting — Copy vs Cut mode
 
-- **FR-SORT-1.** Pressing a folder's shortcut (`1`–`9`), clicking its button in the sidebar `FolderManager`, or tapping it in the mobile action bar assigns the **current** file to that folder.
+- **FR-SORT-1.** Pressing a folder's shortcut key, clicking its button in the sidebar `FolderManager`, or tapping it in the mobile action bar assigns the **current** file to that folder.
 - **FR-SORT-2.** The mode is a global toggle. **Default is Copy.**
   - **Copy:** the file is written (duplicated) into the target folder; the original remains in the root.
   - **Cut:** the file is moved into the target folder (native `handle.move()` when available, else copy-then-delete). The item is flagged `moved: true` and its handle is re-acquired at the new location so it is never stale.
@@ -196,7 +196,8 @@ Requirements are grouped by feature area. Each area lists behaviour, limits, and
 - **FR-SORT-4.** Re-assigning an already-sorted file to a different folder overwrites its mapping and performs a fresh copy/move into the new target. (The prior copy is not automatically removed; the mapping reflects the latest target.)
 - **FR-SORT-5.** A failed assignment appends a failure `SortOperation` (with the error message), surfaces an error, does **not** advance, and still persists the failure to the operation log.
 - **FR-SORT-6.** Concurrent rapid assignments (e.g. holding a key) are safe: all database writes are funneled through a single serialized promise chain so updates cannot interleave or be dropped.
-- **Edge cases:** if the target folder handle cannot be resolved, the assignment aborts with *"Folder target tidak ditemukan"*. Assigning the last file advances to (stays on) the last index.
+- **FR-SORT-7 (customizable shortcuts).** A folder's sort key is editable — clicking its badge records the next keypress. `validateShortcut` accepts **any** key EXCEPT (a) reserved app actions (`RESERVED_SHORTCUT_KEYS`: arrows, `Space`, `U`, `Esc`, …), (b) modifier combinations (Ctrl/Alt/⌘+key, rejected at capture time so e.g. `Ctrl+P` cannot print), and (c) a key already assigned to another folder. Keys are stored/matched case-insensitively and persisted with the folder. Folders beyond the first nine can be given a shortcut this way.
+- **Edge cases:** if the target folder handle cannot be resolved, the assignment aborts with a localized *"Target folder not found"* toast. Assigning the last file advances to (stays on) the last index.
 
 ### 5.4 Filename-collision handling
 
@@ -237,7 +238,7 @@ Requirements are grouped by feature area. Each area lists behaviour, limits, and
 
 ### 5.8 RAW & video preview
 
-**RAW** ([src/services/rawDecoder.ts](../src/services/rawDecoder.ts)) — quality-first strategy, decoded on demand for the current RAW item only:
+**RAW** ([src/shared/services/rawDecoder.ts](../src/shared/services/rawDecoder.ts)) — quality-first strategy, decoded on demand for the current RAW item only:
 
 1. **Extract the largest embedded JPEG preview.** Scan for JPEG SOI markers (`FF D8 FF`), slice each candidate from its SOI to the next SOI (or EOF), capped at 40 MB (`MAX_CANDIDATE_BYTES`); validate up to the 6 largest candidates with `createImageBitmap`; pick the widest that actually decodes; re-encode it to a bounded JPEG (longest side ≤ **2048 px**, `MAX_PREVIEW_DIM`) so the cache stays small.
 2. If a **sharp** embedded preview (width ≥ **800 px**, `SHARP_PREVIEW_MIN_WIDTH`) is found, use it directly.
@@ -257,17 +258,17 @@ Requirements are grouped by feature area. Each area lists behaviour, limits, and
 
 See [§6](#6-project-persistence--database) for the full state & persistence model. Summary:
 
-- **FR-DB-1.** A single JSON file, `photo-sorter-db.json`, schema version `2.0`, is auto-created inside the opened folder on first open and updated after every state change.
+- **FR-DB-1.** A single JSON file, `nata-photo-db.json`, schema version `2.0`, is auto-created inside the opened folder on first open and updated after every state change.
 - **FR-DB-2.** Persisted: sort folders, the per-file sort mapping (keyed by file **name**), the move mode, `currentIndex`, a recent operation log (max 50), a per-file metadata cache, stats, and a timestamp.
 - **FR-DB-3.** All writes are serialized (single promise chain) and use `createWritable → write → close`.
 - **FR-DB-4.** On load, the file is validated (shape + version) and **sanitized** (prototype-pollution stripping, size bounds, scalar coercion). A missing/corrupt/incompatible file is reset with a visible warning.
 
 ### 5.10 PWA & offline
 
-- **FR-PWA-1.** The app is an installable PWA (standalone display, Indonesian manifest name *"Photo Sorter — Sortir Foto & Video Lokal"*, theme/background colour `#0a0f1a`, 192 & 512 px icons).
+- **FR-PWA-1.** The app is an installable PWA (standalone display, Indonesian manifest name *"Nata Photo — Sortir Foto & Video Lokal"*, theme/background colour `#0a0f1a`, 192 & 512 px icons).
 - **FR-PWA-2.** A Workbox service worker precaches JS/CSS/HTML/WASM and other assets for offline use, with `maximumFileSizeToCacheInBytes` of 4 MB to cover the ~1.3 MB `libraw` WASM.
 - **FR-PWA-3.** Update strategy is `autoUpdate` (`skipWaiting` + `clientsClaim`); the SW self-updates on reload.
-- **FR-PWA-4.** The service worker is registered **manually** in [src/main.tsx](../src/main.tsx) on `window` load — no inline registration script is injected, preserving the strict CSP.
+- **FR-PWA-4.** The service worker is registered **manually** in [src/app/main.tsx](../src/app/main.tsx) on `window` load — no inline registration script is injected, preserving the strict CSP.
 - **FR-PWA-5.** The app is a single view with no router; any non-`/` path is normalized back to `/` in `main.tsx`.
 - **Note:** offline covers the *application shell*. Opening a folder and processing files always works locally regardless of connectivity, because no network is involved in file handling.
 
@@ -275,7 +276,7 @@ See [§6](#6-project-persistence--database) for the full state & persistence mod
 
 - **FR-THEME-1.** Light and dark themes plus a "system" option are available via the navbar toggle. **Default theme is dark.**
 - **FR-THEME-2.** The chosen theme persists in `localStorage` under key `vite-ui-theme`.
-- **FR-THEME-3.** Design tokens use the OKLCH colour space (light on `:root`, dark on `.dark`); see [UI facts / globals.css](../src/assets/styles/globals.css).
+- **FR-THEME-3.** Design tokens use the OKLCH colour space (light on `:root`, dark on `.dark`); see [UI facts / globals.css](../src/app/styles/globals.css).
 
 ### 5.12 Responsive & mobile
 
@@ -290,7 +291,7 @@ See [§6](#6-project-persistence--database) for the full state & persistence mod
 
 ### 6.1 Runtime state (in-memory)
 
-Owned by the controller hook [src/hooks/useFileSystem.ts](../src/hooks/useFileSystem.ts):
+Owned by the controller hook [src/features/file-system/model/useFileSystem.ts](../src/features/file-system/model/useFileSystem.ts):
 
 | State | Meaning | Persisted? |
 | --- | --- | --- |
@@ -304,9 +305,9 @@ Owned by the controller hook [src/hooks/useFileSystem.ts](../src/hooks/useFileSy
 | `rawPreviewUrls`, `isDecodingRaw` | RAW preview cache & decode flag. | No |
 | `metadataByKey`, metadata cache | Lazily-extracted metadata. | Yes (metadata cache) |
 
-### 6.2 Persisted schema — `photo-sorter-db.json`
+### 6.2 Persisted schema — `nata-photo-db.json`
 
-Written inside the opened folder. Schema `version: "2.0"`. Shape (`CompleteProjectState`, see [src/services/dbService.ts](../src/services/dbService.ts) and [src/types/index.ts](../src/types/index.ts)):
+Written inside the opened folder. Schema `version: "2.0"`. Shape (`CompleteProjectState`, see [src/shared/services/dbService.ts](../src/shared/services/dbService.ts) and [src/shared/types/index.ts](../src/shared/types/index.ts)):
 
 ```jsonc
 {
@@ -337,11 +338,11 @@ Key facts:
 
 ### 6.3 Load, validation, sanitization & reset
 
-The database file lives in a user-writable folder and is therefore treated as **untrusted input**. On load ([src/services/dbService.ts](../src/services/dbService.ts)):
+The database file lives in a user-writable folder and is therefore treated as **untrusted input**. On load ([src/shared/services/dbService.ts](../src/shared/services/dbService.ts)):
 
 ```mermaid
 flowchart TD
-    A[Read photo-sorter-db.json] -->|missing| Z[Return null → fresh DB<br/>normal on first open]
+    A[Read nata-photo-db.json] -->|missing| Z[Return null → fresh DB<br/>normal on first open]
     A -->|read ok| B[JSON.parse]
     B -->|throws| C["Warn: 'Database rusak, dibuat ulang' → reset"]
     B -->|ok| D[isValidState shape check]
@@ -368,13 +369,13 @@ flowchart TD
 
 **On restore**, additionally: sort folders whose directory no longer exists on disk are skipped (with a toast), and any mapping pointing at a missing folder is dropped. `currentIndex` is clamped to the current photo count.
 
-> Deleting `photo-sorter-db.json` fully resets the project; the app recreates it on the next open.
+> Deleting `nata-photo-db.json` fully resets the project; the app recreates it on the next open.
 
 ---
 
 ## 7. Keyboard shortcuts
 
-Shortcuts are handled globally in [src/components/ContentViewer.tsx](../src/components/ContentViewer.tsx) and are **ignored while typing** in an `<input>`, `<textarea>`, or `contenteditable` element.
+Shortcuts are handled globally in [src/features/content-viewer/ui/ContentViewer.tsx](../src/features/content-viewer/ui/ContentViewer.tsx) and are **ignored while typing** in an `<input>`, `<textarea>`, or `contenteditable` element.
 
 | Key | Action | Notes |
 | --- | --- | --- |
@@ -418,7 +419,7 @@ Additional (non-keyboard) input methods: click folder buttons in the sidebar/mob
 
 ## 10. Status toasts (status store)
 
-Transient status is managed by a Zustand store ([src/stores/statusStore.ts](../src/stores/statusStore.ts)) and surfaced by `StatusIndicator` in the navbar:
+Transient status is managed by a Zustand store ([src/shared/store/statusStore.ts](../src/shared/store/statusStore.ts)) and surfaced by `StatusIndicator` in the navbar:
 
 - At most **3** toasts kept at once.
 - `success` / `error` toasts auto-expire after **3 s**; `loading` toasts persist until explicitly cleared (`clearStatus`).
@@ -428,7 +429,7 @@ Transient status is managed by a Zustand store ([src/stores/statusStore.ts](../s
 
 ## 11. Error states & user-facing messages
 
-All user-facing copy is Indonesian. Representative messages by area:
+All user-facing copy is localized (English default + Indonesian) through i18next; keys live in `src/shared/i18n/language/{en,id}.json`. Representative messages by area (Indonesian shown):
 
 | Area | Condition | Message (Indonesian) |
 | --- | --- | --- |
@@ -458,7 +459,7 @@ All user-facing copy is Indonesian. Representative messages by area:
 
 ## 12. Folder-name validation
 
-User-entered sort-folder names are validated by [src/lib/safeName.ts](../src/lib/safeName.ts) (`validateFolderName`) as **defense-in-depth** on top of the File System Access API's own path-segment rejection. A name is rejected if it:
+User-entered sort-folder names are validated by [src/shared/lib/safeName.ts](../src/shared/lib/safeName.ts) (`validateFolderName`) as **defense-in-depth** on top of the File System Access API's own path-segment rejection. A name is rejected if it:
 
 - is empty (after trim), or exceeds **200** characters;
 - equals `.` or `..`;
@@ -472,7 +473,7 @@ Spaces and hyphens are allowed. Duplicate names (case-insensitive) are rejected 
 
 ## 13. Non-goals
 
-Photo Sorter deliberately does **not**:
+Nata Photo deliberately does **not**:
 
 1. **Upload or transmit** files, metadata, or telemetry anywhere. There is no backend for user data and no network egress of file contents.
 2. **Recurse** into sub-folders — only the top level of the opened folder is scanned.
@@ -493,7 +494,7 @@ Each feature is accepted when its criteria hold. IDs cross-reference [§5](#5-fu
 
 ### Folder opening & scanning (5.1)
 
-- [ ] Opening a folder with mixed content lists **only** top-level supported images/videos; sub-folders, unsupported files, and `photo-sorter-db.json` are excluded.
+- [ ] Opening a folder with mixed content lists **only** top-level supported images/videos; sub-folders, unsupported files, and `nata-photo-db.json` are excluded.
 - [ ] Cancelling the picker returns to the empty state with **no** error shown.
 - [ ] Opening a second folder revokes prior blob URLs and clears the undo stack and queues.
 - [ ] An empty or all-unsupported folder keeps the pick-folder empty state.
@@ -543,7 +544,7 @@ Each feature is accepted when its criteria hold. IDs cross-reference [§5](#5-fu
 
 ### Persistence (5.9 / §6)
 
-- [ ] `photo-sorter-db.json` (version `2.0`) is created on first open and updated after each change.
+- [ ] `nata-photo-db.json` (version `2.0`) is created on first open and updated after each change.
 - [ ] A corrupt/invalid/incompatible DB is reset with a visible warning and never throws.
 - [ ] On load, prototype-pollution keys are stripped and collection sizes are bounded per the sanitization table.
 - [ ] Deleting the DB file resets the project; a folder removed on disk is skipped and its mappings dropped.
@@ -565,28 +566,28 @@ Each feature is accepted when its criteria hold. IDs cross-reference [§5](#5-fu
 
 | Constant | Value | Where | Meaning |
 | --- | --- | --- | --- |
-| Undo stack size | 20 | [useFileSystem.ts](../src/hooks/useFileSystem.ts) | Max reversible sorts (in-memory). |
-| Concurrent date-extract workers | 8 | [useFileSystem.ts](../src/hooks/useFileSystem.ts) | Parallelism for chronological ordering. |
-| Metadata persist debounce | 1500 ms | [useFileSystem.ts](../src/hooks/useFileSystem.ts) | Debounce for metadata-cache writes. |
-| Swipe threshold | 50 px | [ContentViewer.tsx](../src/components/ContentViewer.tsx) | Minimum horizontal swipe to navigate. |
-| Image decode retries | 2 | [ContentViewer.tsx](../src/components/ContentViewer.tsx) | Object-URL recreation retries. |
-| `MAX_HEADER_BYTES` | 2 MB | [exifService.ts](../src/services/exifService.ts) | Image header slice for EXIF. |
-| `MAX_FULL_DECODE_BYTES` | 80 MB | [rawDecoder.ts](../src/services/rawDecoder.ts) | Above this, skip full RAW decode. |
-| `SHARP_PREVIEW_MIN_WIDTH` | 800 px | [rawDecoder.ts](../src/services/rawDecoder.ts) | Embedded preview "sharp" threshold. |
-| `MAX_CANDIDATE_BYTES` | 40 MB | [rawDecoder.ts](../src/services/rawDecoder.ts) | Cap per embedded-JPEG candidate. |
-| `MAX_PREVIEW_DIM` | 2048 px | [rawDecoder.ts](../src/services/rawDecoder.ts) | Cached preview longest side. |
-| `LIBRAW_TIMEOUT_MS` | 20 000 ms | [rawDecoder.ts](../src/services/rawDecoder.ts) | Per-libraw-op timeout. |
-| `DB_VERSION` | `"2.0"` | [dbService.ts](../src/services/dbService.ts) | DB schema version. |
-| `MAX_OPERATIONS` | 50 | [dbService.ts](../src/services/dbService.ts) | Persisted operation-log length. |
-| `MAX_SORTED_ENTRIES` | 100 000 | [dbService.ts](../src/services/dbService.ts) | Mapping size bound on load. |
-| `MAX_METADATA_ENTRIES` | 100 000 | [dbService.ts](../src/services/dbService.ts) | Metadata-cache size bound on load. |
-| `MAX_FOLDERS` | 1 000 | [dbService.ts](../src/services/dbService.ts) | Folder count bound on load. |
-| Folder name max length | 200 | [safeName.ts](../src/lib/safeName.ts) | Max folder-name characters. |
-| Status toasts kept | 3 | [statusStore.ts](../src/stores/statusStore.ts) | Max concurrent toasts. |
-| Toast auto-expire | 3 s | [statusStore.ts](../src/stores/statusStore.ts) | success/error auto-dismiss. |
+| Undo stack size | 20 | [useFileSystem.ts](../src/features/file-system/model/useFileSystem.ts) | Max reversible sorts (in-memory). |
+| Concurrent date-extract workers | 8 | [useFileSystem.ts](../src/features/file-system/model/useFileSystem.ts) | Parallelism for chronological ordering. |
+| Metadata persist debounce | 1500 ms | [useFileSystem.ts](../src/features/file-system/model/useFileSystem.ts) | Debounce for metadata-cache writes. |
+| Swipe threshold | 50 px | [ContentViewer.tsx](../src/features/content-viewer/ui/ContentViewer.tsx) | Minimum horizontal swipe to navigate. |
+| Image decode retries | 2 | [ContentViewer.tsx](../src/features/content-viewer/ui/ContentViewer.tsx) | Object-URL recreation retries. |
+| `MAX_HEADER_BYTES` | 2 MB | [exifService.ts](../src/shared/services/exifService.ts) | Image header slice for EXIF. |
+| `MAX_FULL_DECODE_BYTES` | 80 MB | [rawDecoder.ts](../src/shared/services/rawDecoder.ts) | Above this, skip full RAW decode. |
+| `SHARP_PREVIEW_MIN_WIDTH` | 800 px | [rawDecoder.ts](../src/shared/services/rawDecoder.ts) | Embedded preview "sharp" threshold. |
+| `MAX_CANDIDATE_BYTES` | 40 MB | [rawDecoder.ts](../src/shared/services/rawDecoder.ts) | Cap per embedded-JPEG candidate. |
+| `MAX_PREVIEW_DIM` | 2048 px | [rawDecoder.ts](../src/shared/services/rawDecoder.ts) | Cached preview longest side. |
+| `LIBRAW_TIMEOUT_MS` | 20 000 ms | [rawDecoder.ts](../src/shared/services/rawDecoder.ts) | Per-libraw-op timeout. |
+| `DB_VERSION` | `"2.0"` | [dbService.ts](../src/shared/services/dbService.ts) | DB schema version. |
+| `MAX_OPERATIONS` | 50 | [dbService.ts](../src/shared/services/dbService.ts) | Persisted operation-log length. |
+| `MAX_SORTED_ENTRIES` | 100 000 | [dbService.ts](../src/shared/services/dbService.ts) | Mapping size bound on load. |
+| `MAX_METADATA_ENTRIES` | 100 000 | [dbService.ts](../src/shared/services/dbService.ts) | Metadata-cache size bound on load. |
+| `MAX_FOLDERS` | 1 000 | [dbService.ts](../src/shared/services/dbService.ts) | Folder count bound on load. |
+| Folder name max length | 200 | [safeName.ts](../src/shared/lib/safeName.ts) | Max folder-name characters. |
+| Status toasts kept | 3 | [statusStore.ts](../src/shared/store/statusStore.ts) | Max concurrent toasts. |
+| Toast auto-expire | 3 s | [statusStore.ts](../src/shared/store/statusStore.ts) | success/error auto-dismiss. |
 | PWA cache file cap | 4 MB | vite PWA config | Covers ~1.3 MB libraw WASM. |
-| Folder colours | 9 | [useFileSystem.ts](../src/hooks/useFileSystem.ts) | `bg-{red,blue,green,yellow,purple,pink,indigo,orange,teal}-500`. |
+| Folder colours | 9 | [useFileSystem.ts](../src/features/file-system/model/useFileSystem.ts) | `bg-{red,blue,green,yellow,purple,pink,indigo,orange,teal}-500`. |
 
 ---
 
-*Photo Sorter is fully client-side: your files never leave your machine. See [SECURITY.md](SECURITY.md) for the security posture and [DEPLOYMENT.md](DEPLOYMENT.md) for hosting.*
+*Nata Photo is fully client-side: your files never leave your machine. See [SECURITY.md](SECURITY.md) for the security posture and [DEPLOYMENT.md](DEPLOYMENT.md) for hosting.*

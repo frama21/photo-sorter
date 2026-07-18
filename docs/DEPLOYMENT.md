@@ -1,6 +1,6 @@
 # Deployment Guide
 
-How to build, run, and host Photo Sorter. Two first-class targets are supported — a **single hardened Docker container** and **Firebase Hosting** — and both ship the **same** strict security headers.
+How to build, run, and host Nata Photo. Two first-class targets are supported — a **single hardened Docker container** and **Firebase Hosting** — and both ship the **same** strict security headers.
 
 Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
@@ -10,7 +10,7 @@ Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
 ## 1. Overview
 
-Photo Sorter is a static single-page app: the build output in `dist/` is just HTML, JS, CSS, and WASM. The only job of a deployment is to serve those files **with the right security headers and MIME types** and route unknown paths back to `index.html`.
+Nata Photo is a static single-page app: the build output in `dist/` is just HTML, JS, CSS, and WASM. The only job of a deployment is to serve those files **with the right security headers and MIME types** and route unknown paths back to `index.html`.
 
 There is **no nginx and no reverse proxy** in the stack. Pick one target:
 
@@ -75,11 +75,11 @@ docker compose up -d --build    # rebuild picks up dependency patches
 ## 4. Option B — Docker without Compose
 
 ```bash
-docker build -t photo-sorter .
-docker run -d -p 8080:8080 --name photo-sorter \
+docker build -t nata-photo .
+docker run -d -p 8080:8080 --name nata-photo \
   --read-only --tmpfs /tmp --cap-drop ALL \
   --security-opt no-new-privileges \
-  photo-sorter
+  nata-photo
 ```
 
 ---
