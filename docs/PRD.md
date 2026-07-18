@@ -1,6 +1,6 @@
-# Product Requirements Document — Photo Sorter
+# Product Requirements Document — Nata Photo
 
-A product-level specification for Photo Sorter, a 100% client-side, keyboard-driven photo & video sorter that runs entirely in the browser and never uploads a byte.
+A product-level specification for Nata Photo, a 100% client-side, keyboard-driven photo & video sorter that runs entirely in the browser and never uploads a byte.
 
 Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
@@ -27,7 +27,7 @@ Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
 ## 1. Executive summary & product vision
 
-**Photo Sorter** is a browser-based application that lets a person open a local
+**Nata Photo** is a browser-based application that lets a person open a local
 folder of photos and videos, review each file in chronological order, and file
 it into one of up to nine destination sub-folders using single-key shortcuts.
 Files are copied or moved directly on the local disk through the
@@ -108,7 +108,7 @@ There is no lightweight, private, **keyboard-first** tool that:
 
 Users either (a) leave libraries unsorted indefinitely, (b) pay for and learn
 heavyweight software, or (c) compromise privacy by uploading to a cloud sorter.
-Photo Sorter exists to remove that trade-off.
+Nata Photo exists to remove that trade-off.
 
 ---
 
@@ -142,7 +142,7 @@ Photo Sorter exists to remove that trade-off.
 
 ## 4. Target users & personas
 
-Photo Sorter targets individuals who own **large local media libraries** and
+Nata Photo targets individuals who own **large local media libraries** and
 value speed and privacy. It assumes a Chromium-based desktop browser as the
 primary environment, with a usable mobile experience as a secondary surface.
 
@@ -155,7 +155,7 @@ primary environment, with a usable mobile experience as a secondary surface.
   cannot risk uploading client material.
 - **Pain today:** Catalog software is slow to import; the OS viewer can't preview
   RAW well; cloud tools are a privacy and contract risk.
-- **How Photo Sorter helps:** Opens the card folder, sees files in capture order
+- **How Nata Photo helps:** Opens the card folder, sees files in capture order
   with embedded-JPEG RAW previews, and files each into `Keep` / `Reject` /
   `Client-A` with keys `1`–`3`, using Cut to physically move rejects out.
 
@@ -165,7 +165,7 @@ primary environment, with a usable mobile experience as a secondary surface.
   upload private images to any cloud service.
 - **Needs:** A tool that provably keeps everything local; simple copy-based
   sorting so originals are never at risk; something he can verify is offline.
-- **How Photo Sorter helps:** Runs entirely client-side; can be installed as a
+- **How Nata Photo helps:** Runs entirely client-side; can be installed as a
   PWA and used with networking disabled; the strict CSP and no-egress design are
   documented in [SECURITY.md](SECURITY.md).
 
@@ -174,7 +174,7 @@ primary environment, with a usable mobile experience as a secondary surface.
 - **Context:** Travels or works in places with no reliable internet; wants to
   sort on a laptop during downtime.
 - **Needs:** The app must fully function without a network after first load.
-- **How Photo Sorter helps:** As an installable PWA with a Workbox precache
+- **How Nata Photo helps:** As an installable PWA with a Workbox precache
   (including the RAW-decode WASM), it launches and operates offline.
 
 ### Persona D — "Anton", the phone-first casual sorter
@@ -182,7 +182,7 @@ primary environment, with a usable mobile experience as a secondary surface.
 - **Context:** Occasionally triages screenshots and clips on a Chromium mobile
   browser.
 - **Needs:** Touch-friendly navigation and one-tap filing.
-- **How Photo Sorter helps:** The mobile layout offers a fixed bottom action bar
+- **How Nata Photo helps:** The mobile layout offers a fixed bottom action bar
   with one colored button per folder and swipe navigation.
 - **Note:** Mobile support depends on File System Access API availability in the
   mobile browser; desktop remains the primary target.
@@ -207,7 +207,7 @@ flowchart TD
     A[Open app in Chromium browser] --> B[Click 'Open folder']
     B --> C[Grant read/write permission via showDirectoryPicker]
     C --> D[App scans TOP-LEVEL images & videos]
-    D --> E[Restore photo-sorter-db.json if present]
+    D --> E[Restore nata-photo-db.json if present]
     E --> F[Files shown in chronological capture order]
     F --> G[Create sort sub-folders 1..9]
     G --> H[Preview current file + view metadata]
@@ -251,7 +251,7 @@ table in §6.
 
 > As a returning user, I want my previous sort state restored automatically.
 
-- **AC-1.2.1** Given a folder that already contains `photo-sorter-db.json`, when
+- **AC-1.2.1** Given a folder that already contains `nata-photo-db.json`, when
   I reopen it, then folders, per-file sort mapping, move mode, and `currentIndex`
   are restored.
 - **AC-1.2.2** Given a missing, corrupt, or incompatible-version database, when
@@ -388,7 +388,7 @@ table in §6.
 > As a user, I want my progress saved without thinking about it.
 
 - **AC-5.1.1** Given any state-changing action, then the project state is written
-  to `photo-sorter-db.json` inside the opened folder.
+  to `nata-photo-db.json` inside the opened folder.
 - **AC-5.1.2** Given rapid consecutive actions (e.g. holding a key), then writes
   are serialized through a single promise chain so no update is dropped.
 - **AC-5.1.3** Given the recent-operation log, then it is capped at **50**
@@ -437,7 +437,7 @@ desirable future enhancements; **Won't** = explicitly excluded for now.
 | FR-M9 | Filename-collision-safe writes (`_1`, `_2`, … suffixes). | US-3.3 | Shipped |
 | FR-M10 | Undo last sort with full copy/move reversal (stack ≤ 20). | US-3.4 | Shipped |
 | FR-M11 | Create/manage sort sub-folders with shortcut + color; validated names. | US-4.1 | Shipped |
-| FR-M12 | Auto-persist project state to `photo-sorter-db.json` (serialized writes). | US-5.1 | Shipped |
+| FR-M12 | Auto-persist project state to `nata-photo-db.json` (serialized writes). | US-5.1 | Shipped |
 | FR-M13 | Reset corrupt/incompatible DB with a visible warning; sanitize on load. | US-1.2 | Shipped |
 | FR-M14 | Keyboard navigation (`←`/`→`/`Space`) and shortcut suppression in inputs. | US-3.6, US-3.1 | Shipped |
 | FR-M15 | Strict CSP, cross-origin isolation, and full security-header set. | US-5.3 | Shipped |
@@ -461,7 +461,7 @@ desirable future enhancements; **Won't** = explicitly excluded for now.
 | ID | Requirement | Notes |
 | --- | --- | --- |
 | FR-C1 | Redo (forward of undo) in addition to undo. | Natural complement to FR-M10. |
-| FR-C2 | Configurable/extended shortcuts beyond `1`–`9` (e.g. more than 9 folders). | Currently capped by the 9 number keys. |
+| ~~FR-C2~~ | ~~Configurable/extended shortcuts beyond `1`–`9`.~~ | **Shipped (2.3.0):** each folder's shortcut is user-customizable to any non-reserved key, so folders beyond nine can be bound too. |
 | FR-C3 | Bulk/multi-select filing. | Speed enhancement for repetitive runs. |
 | FR-C4 | HEIC decode support if/when a viable in-browser decoder is available. | Currently non-previewable. |
 | FR-C5 | Ratings/flags or lightweight tags. | Would broaden beyond pure filing (see N4). |
@@ -623,7 +623,7 @@ initial baseline.
 
 ```mermaid
 timeline
-    title Photo Sorter release history
+    title Nata Photo release history
     1.0.0 (initial) : Client-side sorting via File System Access API : Image preview : Copy/Cut into folders : Number-key shortcuts
     1.1.0 (2025-05) : Video preview + video metadata (mediainfo.js) : Migrated to shadcn/Radix : Zustand status store : DB not reset on reload
     2.0.0 (2026-06-14) : Chronological ordering : Undo + jump-to-unsorted + all-sorted : Installable PWA / offline : Lazy cached metadata : Collision-safe writes : CSP + security headers : Docker : Error boundary : DB schema 2.0 (breaking)
@@ -649,7 +649,7 @@ timeline
 #### v2.0.0 — Chronology, safety, PWA (2026-06-14) — *breaking*
 
 - **Breaking:** Database schema bumped to `2.0`; existing
-  `photo-sorter-db.json` files are reset on first open.
+  `nata-photo-db.json` files are reset on first open.
 - **Added:** Chronological ordering by capture date; undo (`Ctrl/Cmd+Z`);
   jump-to-next-unsorted (`U`); "all sorted" state; installable PWA with offline
   support; lazy, cached metadata; automatic image-preview retry;
@@ -746,7 +746,7 @@ telemetry, local-first** (G1, N1, N6).
 ### 11.1 Explicitly out of scope (current product)
 
 - **Cloud, accounts, sharing, sync** — contradicts the privacy pillar (N1/FR-W1).
-- **Editing/RAW development** — Photo Sorter files; it does not modify pixels
+- **Editing/RAW development** — Nata Photo files; it does not modify pixels
   (N2/FR-W2).
 - **Recursive / whole-library indexing** — top-level scan only (N3/FR-W5).
 - **Firefox/Safari support** — File System Access API is Chromium-only
@@ -765,7 +765,8 @@ telemetry, local-first** (G1, N1, N6).
 - **Optional recursive scan** behind an explicit toggle.
 - **Export/import** of the project database and a human-readable sort report.
 - **Additional accessibility** enhancements (screen-reader flows, high-contrast
-  themes) and localization beyond the current Indonesian UI.
+  themes) and further **localization** beyond the current English + Indonesian UI
+  (the app is already bilingual via i18next, with a persisted language toggle).
 
 Everything above remains subordinate to the invariant pillars: **no uploads, no
 telemetry, local-first, hardened by default**.
@@ -782,7 +783,7 @@ telemetry, local-first, hardened by default**.
 | **Copy mode** | Sorting duplicates the file into the target folder; the original stays. **Default.** |
 | **Cut mode** | Sorting moves the file into the target folder (native `handle.move()` or copy-then-delete). |
 | **Sort folder** | A destination sub-folder (created inside the opened folder) bound to a `1`–`9` shortcut and a color. |
-| **Project database** | `photo-sorter-db.json` written inside the opened folder; holds folders, per-file mapping, mode, `currentIndex`, operation log, metadata cache, stats. Schema `2.0`. |
+| **Project database** | `nata-photo-db.json` written inside the opened folder; holds folders, per-file mapping, mode, `currentIndex`, operation log, metadata cache, stats. Schema `2.0`. |
 | **Embedded preview** | The JPEG a camera stores inside a RAW file; extracted for fast, sharp previews. |
 | **PWA** | Progressive Web App; installable with an offline-capable service worker. |
 | **Cross-origin isolation** | COOP + COEP + CORP configuration enabling powerful, isolated web-platform features. |
@@ -797,12 +798,12 @@ telemetry, local-first, hardened by default**.
 
 ### 12.3 Key source references
 
-- Controller / app state: [src/hooks/useFileSystem.ts](../src/hooks/useFileSystem.ts)
-- Single view: [src/App.tsx](../src/App.tsx) · Entry: [src/main.tsx](../src/main.tsx)
-- Persistence: [src/services/dbService.ts](../src/services/dbService.ts)
-- Metadata: [src/services/exifService.ts](../src/services/exifService.ts)
-- RAW decode: [src/services/rawDecoder.ts](../src/services/rawDecoder.ts)
-- Format registry: [src/config/fileFormats.ts](../src/config/fileFormats.ts)
-- Name safety: [src/lib/safeName.ts](../src/lib/safeName.ts)
-- Types: [src/types/index.ts](../src/types/index.ts)
+- Controller / app state: [src/features/file-system/model/useFileSystem.ts](../src/features/file-system/model/useFileSystem.ts)
+- Single view: [src/app/App.tsx](../src/app/App.tsx) · Entry: [src/app/main.tsx](../src/app/main.tsx)
+- Persistence: [src/shared/services/dbService.ts](../src/shared/services/dbService.ts)
+- Metadata: [src/shared/services/exifService.ts](../src/shared/services/exifService.ts)
+- RAW decode: [src/shared/services/rawDecoder.ts](../src/shared/services/rawDecoder.ts)
+- Format registry: [src/shared/config/fileFormats.ts](../src/shared/config/fileFormats.ts)
+- Name safety: [src/shared/lib/safeName.ts](../src/shared/lib/safeName.ts)
+- Types: [src/shared/types/index.ts](../src/shared/types/index.ts)
 - Static server: [server/index.js](../server/index.js)

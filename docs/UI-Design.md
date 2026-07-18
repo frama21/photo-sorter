@@ -1,10 +1,12 @@
 # UI / UX Design
 
-The visual and interaction design system for Photo Sorter — a keyboard-first, 100% client-side photo & video sorter. This document is the single source of truth for design tokens, layout, components, screen states, theming, motion, accessibility, and localization.
+The visual and interaction design system for Nata Photo — a keyboard-first, 100% client-side photo & video sorter. This document is the single source of truth for design tokens, layout, components, screen states, theming, motion, accessibility, and localization.
 
-Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
+Version 2.3.0 · Last updated 2026-07-19 · Status: Living document
 
-> **Guiding principles.** This design system and the codebase follow six code principles — **Clean Code**, **YAGNI**, **DRY**, **KISS**, **Semantic** naming/HTML, and **A11y** (accessibility). The UI is built accessibility-first (A11y) with semantic HTML and meaningful tokens (Semantic), reusing one design-token set (DRY) and the simplest layout that works (KISS). Full definitions: **[PRINCIPLES.md](PRINCIPLES.md)**.
+> **Design revamp (2.3.0).** The UI was overhauled with a distinctive **"darkroom" identity**: a warm amber signature accent over warm-tinted charcoal/off-white neutrals (OKLCH tokens with low chroma, not the old grayscale-neutral set), a three-family type system (Bricolage Grotesque / Inter / JetBrains Mono — see §3), an ambient radial-glow background, high-impact motion (`fade-up`, `scale-in`, staggered entrances) and **skeleton shimmer** loaders, a **stat-tile** treatment across the sidebar panels, **tooltips on every icon button**, and a **language toggle** (EN/ID). All motion respects `prefers-reduced-motion`. Some subsections below predate the revamp and are being updated incrementally; §3 (Typography) and the tokens in `src/app/styles/globals.css` are authoritative.
+
+> **Guiding principles.** This design system and the codebase follow the craft principles — **Clean Code**, **YAGNI**, **DRY**, **KISS**, **Semantic** naming/HTML, and **A11y** — plus the longevity principles (Readable · Understandable · Reusable · Scalable · Maintainable · Easy to Hand Over). The UI is built accessibility-first (A11y) with semantic HTML and meaningful tokens (Semantic), reusing one design-token set and shared components — `PanelHeader`, `WithTooltip` (DRY/Reusable) — and the simplest layout that works (KISS). Full definitions: **[PRINCIPLES.md](PRINCIPLES.md)**.
 
 > Related: [DESIGN.md](DESIGN.md) (product design rationale) · [ARCHITECTURE.md](ARCHITECTURE.md) (source map & data flow) · [SECURITY.md](SECURITY.md) (CSP & headers that shape what the UI may render) · [PRINCIPLES.md](PRINCIPLES.md) · [PRD.md](PRD.md)
 
@@ -12,7 +14,7 @@ Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
 ## 1. Design language & foundations
 
-Photo Sorter is a **utilitarian, content-first tool**. The interface exists to get out of the way of one repetitive task: look at a photo, press a key, move on. Every design decision serves throughput and clarity.
+Nata Photo is a **utilitarian, content-first tool**. The interface exists to get out of the way of one repetitive task: look at a photo, press a key, move on. Every design decision serves throughput and clarity.
 
 **Principles**
 
@@ -27,17 +29,17 @@ Photo Sorter is a **utilitarian, content-first tool**. The interface exists to g
 
 **Foundation stack**
 
-- **Tailwind CSS v4** with the `@theme inline` token bridge in [src/assets/styles/globals.css](../src/assets/styles/globals.css).
-- **shadcn** (style `radix-nova`, base color `neutral`) primitives over **Radix UI**, under [src/components/ui](../src/components/ui).
+- **Tailwind CSS v4** with the `@theme inline` token bridge in [src/app/styles/globals.css](../src/app/styles/globals.css).
+- **shadcn** (style `radix-nova`, base color `neutral`) primitives over **Radix UI**, under [src/shared/ui](../src/shared/ui).
 - **lucide-react** icon set.
 - **OKLCH** color space for perceptually-even light/dark tokens.
-- Utility class merging via `cn()` (clsx + tailwind-merge) in [src/lib/utils.ts](../src/lib/utils.ts).
+- Utility class merging via `cn()` (clsx + tailwind-merge) in [src/shared/lib/utils.ts](../src/shared/lib/utils.ts).
 
 ---
 
 ## 2. Design tokens
 
-All tokens are CSS custom properties defined in [src/assets/styles/globals.css](../src/assets/styles/globals.css). The light theme lives on `:root`; the dark theme overrides on `.dark` (toggled by `ThemeProvider`). The `@theme inline` block maps each `--<token>` to a Tailwind color/radius utility (e.g. `--color-primary` → `bg-primary`, `text-primary`).
+All tokens are CSS custom properties defined in [src/app/styles/globals.css](../src/app/styles/globals.css). The light theme lives on `:root`; the dark theme overrides on `.dark` (toggled by `ThemeProvider`). The `@theme inline` block maps each `--<token>` to a Tailwind color/radius utility (e.g. `--color-primary` → `bg-primary`, `text-primary`).
 
 ### 2.1 Color tokens — light theme (`:root`)
 
@@ -153,18 +155,22 @@ The `@theme inline` block groups tokens into these families, each with a `*-fore
 
 ## 3. Typography
 
-Photo Sorter ships **no custom web font**. It inherits the platform/Tailwind default sans stack, keeping the payload small and the CSP simple (`font-src 'self' data:` — no remote font fetches). Type is sized with Tailwind's scale.
+> **Updated in 2.3.0 (design revamp).** Nata Photo now ships a distinctive
+> three-family type system loaded from Google Fonts (with graceful system-stack
+> fallbacks when offline): **Bricolage Grotesque** for display/headings (`.font-display`,
+> `h1`–`h3`), **Inter** for body (`--font-sans`), and **JetBrains Mono** for numeric
+> metadata and code (`.font-mono`, `tabular-nums`). Families are wired as Tailwind
+> theme variables in `src/app/styles/globals.css`.
 
-| Role | Classes | Notes |
+| Role | Treatment | Notes |
 | --- | --- | --- |
-| App title ("Photo Sorter") | `font-bold text-sm md:text-lg leading-tight` | In the navbar |
-| Version subtitle (`v2.0.1`) | `text-[10px] md:text-xs` | Under the title |
-| Card / panel title | `text-xl font-bold` (MetadataPanel: `text-lg md:text-xl`) | Paired with a 24px lucide icon |
-| Body / item text | `text-sm` | Default reading size |
-| Captions & metadata values | `text-xs text-muted-foreground` | Panel descriptions, filenames |
-| Micro-labels | `text-[10px]` / `text-xs` | Mobile hints, badges |
-| Folder shortcut swatch digit | `font-bold text-xs` | White on the folder color |
-| Code (`.photo-sorter-db.json`) | `<code>` inline | Empty-state hint |
+| App title ("NataPhoto") | `font-display font-extrabold text-base md:text-xl` | Navbar brand mark |
+| Panel titles | `font-display font-extrabold text-lg md:text-xl` | Via the shared `PanelHeader` |
+| Body / item text | `text-sm` (Inter) | Default reading size |
+| Metadata values | `font-mono text-sm tabular-nums` | Aligned numeric columns |
+| Micro-labels | `text-[10px] uppercase tracking-wider` | Stat-tile captions, badges |
+| Folder shortcut swatch | `font-bold text-sm` (uppercased) | White on the folder color |
+| Code (`nata-photo-db.json`) | `<code>` inline (mono) | Empty-state hint |
 
 Guidelines: `leading-tight` on stacked headings; `truncate` / `line-clamp-1` on filenames, folder names, and operation rows; `break-words` on long metadata values (camera names, codecs) so narrow panels never overflow.
 
@@ -203,7 +209,7 @@ Icons come exclusively from **lucide-react** (`[&_svg]` sizing baked into Button
 
 ### 5.1 Breakpoints & regions
 
-Photo Sorter uses Tailwind's default breakpoints, but reacts at **two** of them, which produces three meaningful layouts:
+Nata Photo uses Tailwind's default breakpoints, but reacts at **two** of them, which produces three meaningful layouts:
 
 | Range | Name | Navigation model | Structure |
 | --- | --- | --- | --- |
@@ -218,7 +224,7 @@ The outer wrapper is `min-h-screen` with `transition-colors duration-300` (theme
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │  ◐ backdrop-blur navbar  (sticky top-0, z-50)                          │
-│  [icon] Photo Sorter v2.0.1          [status toast] [☾/☀ theme]        │
+│  [icon] Nata Photo v2.0.1          [status toast] [☾/☀ theme]        │
 ├──────────────────────────────────────────────────────────────────────┤
 │  container mx-auto · lg:grid-cols-12 · gap-6                           │
 │                                                                        │
@@ -242,7 +248,7 @@ The outer wrapper is `min-h-screen` with `transition-colors duration-300` (theme
 
 ```
 ┌───────────────────────────────┐
-│ ◐ [icon] Photo Sorter  [☾]    │  sticky navbar
+│ ◐ [icon] Nata Photo  [☾]    │  sticky navbar
 ├───────────────────────────────┤
 │ ProgressBar  12/240 · 57 dis. │
 │ ┌───────────────────────────┐ │
@@ -289,9 +295,9 @@ flowchart TD
 
 ## 6. Component inventory
 
-### 6.1 shadcn / Radix UI primitives — [src/components/ui](../src/components/ui)
+### 6.1 shadcn / Radix UI primitives — [src/shared/ui](../src/shared/ui)
 
-| Component | Purpose in Photo Sorter |
+| Component | Purpose in Nata Photo |
 | --- | --- |
 | `alert` | Error banner, all-sorted banner, keyboard-shortcut tips |
 | `badge` | Format label, sort status, StatusIndicator toast, folder tag |
@@ -315,19 +321,19 @@ flowchart TD
 
 | Component | File | Purpose |
 | --- | --- | --- |
-| `App` | [src/App.tsx](../src/App.tsx) | Single view; composes everything, derives sorted/unsorted counts & all-sorted state, merges lazy metadata into the current photo |
-| `Navbar` | [src/components/app/Navbar.tsx](../src/components/app/Navbar.tsx) | Sticky, blurred header: logo, title, version, status toast, theme toggle |
-| `ContentViewer` | [src/components/ContentViewer.tsx](../src/components/ContentViewer.tsx) | Media stage: image/video/RAW-decoding/preview-unavailable states, filename + format + status badges, side chevrons, keyboard & swipe handling |
-| `FolderManager` | [src/components/FolderManager.tsx](../src/components/FolderManager.tsx) | Copy/Cut mode tabs, add-folder form, folder list with shortcut swatch + Sortir/delete, Undo & "Belum disortir" quick actions, shortcut tips |
-| `MetadataPanel` | [src/components/MetadataPanel.tsx](../src/components/MetadataPanel.tsx) | EXIF (image) or mediainfo (video) fields in a fluid `auto-fit minmax(140px,1fr)` grid |
-| `OperationLog` | [src/components/OperationLog.tsx](../src/components/OperationLog.tsx) | Last 3 operations (newest first), green/red tinted rows |
-| `Stats` | [src/components/Stats.tsx](../src/components/Stats.tsx) | Totals, sorted/unsorted, success/failed operation counts |
-| `ProgressBar` | [src/components/ProgressBar.tsx](../src/components/ProgressBar.tsx) | Two bars: current position and sorted count |
-| `MobileActionBar` | [src/components/MobileActionBar.tsx](../src/components/MobileActionBar.tsx) | Fixed bottom bar: prev/next + one colored button per folder |
-| `StatusIndicator` | [src/components/StatusIndicator.tsx](../src/components/StatusIndicator.tsx) | Reads the Zustand status store; shows the newest toast in the navbar |
-| `ThemeMode` | [src/components/ThemeMode.tsx](../src/components/ThemeMode.tsx) | Sun/Moon toggle (binary light↔dark) with `sr-only` label |
-| `ThemeProvider` | [src/components/ThemeProvider.tsx](../src/components/ThemeProvider.tsx) | Theme context; writes/reads `localStorage["vite-ui-theme"]`; applies `.dark`/`.light` on `<html>` |
-| `ErrorBoundary` | [src/components/ErrorBoundary.tsx](../src/components/ErrorBoundary.tsx) | Catches render errors; "Coba lagi" / "Muat ulang" recovery |
+| `App` | [src/app/App.tsx](../src/app/App.tsx) | Single view; composes everything, derives sorted/unsorted counts & all-sorted state, merges lazy metadata into the current photo |
+| `Navbar` | [src/features/navbar/ui/Navbar.tsx](../src/features/navbar/ui/Navbar.tsx) | Sticky, blurred header: logo, title, version, status toast, theme toggle |
+| `ContentViewer` | [src/features/content-viewer/ui/ContentViewer.tsx](../src/features/content-viewer/ui/ContentViewer.tsx) | Media stage: image/video/RAW-decoding/preview-unavailable states, filename + format + status badges, side chevrons, keyboard & swipe handling |
+| `FolderManager` | [src/features/folder-manager/ui/FolderManager.tsx](../src/features/folder-manager/ui/FolderManager.tsx) | Copy/Cut mode tabs, add-folder form, folder list with shortcut swatch + Sortir/delete, Undo & "Belum disortir" quick actions, shortcut tips |
+| `MetadataPanel` | [src/features/metadata-panel/ui/MetadataPanel.tsx](../src/features/metadata-panel/ui/MetadataPanel.tsx) | EXIF (image) or mediainfo (video) fields in a fluid `auto-fit minmax(140px,1fr)` grid |
+| `OperationLog` | [src/features/operation-log/ui/OperationLog.tsx](../src/features/operation-log/ui/OperationLog.tsx) | Last 3 operations (newest first), green/red tinted rows |
+| `Stats` | [src/features/stats/ui/Stats.tsx](../src/features/stats/ui/Stats.tsx) | Totals, sorted/unsorted, success/failed operation counts |
+| `ProgressBar` | [src/features/progress/ui/ProgressBar.tsx](../src/features/progress/ui/ProgressBar.tsx) | Two bars: current position and sorted count |
+| `MobileActionBar` | [src/features/mobile-actions/ui/MobileActionBar.tsx](../src/features/mobile-actions/ui/MobileActionBar.tsx) | Fixed bottom bar: prev/next + one colored button per folder |
+| `StatusIndicator` | [src/features/status-indicator/ui/StatusIndicator.tsx](../src/features/status-indicator/ui/StatusIndicator.tsx) | Reads the Zustand status store; shows the newest toast in the navbar |
+| `ThemeMode` | [src/features/theme-toggle/ui/ThemeMode.tsx](../src/features/theme-toggle/ui/ThemeMode.tsx) | Sun/Moon toggle (binary light↔dark) with `sr-only` label |
+| `ThemeProvider` | [src/app/providers/ThemeProvider.tsx](../src/app/providers/ThemeProvider.tsx) | Theme context; writes/reads `localStorage["vite-ui-theme"]`; applies `.dark`/`.light` on `<html>` |
+| `ErrorBoundary` | [src/app/providers/ErrorBoundary.tsx](../src/app/providers/ErrorBoundary.tsx) | Catches render errors; "Coba lagi" / "Muat ulang" recovery |
 
 ---
 
@@ -350,7 +356,7 @@ stateDiagram-v2
     RawDecoding --> NoPreview: decode fails
 ```
 
-1. **Empty (pick-folder)** — `totalPhotos === 0`. Full-height `Empty` (`h-[90dvh]`) with `ImageOff` media, title **"Mulai Sortir Foto"**, a description noting sort folders auto-create and state persists to `.photo-sorter-db.json`, a large **"Pilih Folder Foto"** button (disabled → "Membaca…" while loading), and the note "Chrome/Edge/Opera terbaru diperlukan. File diproses secara lokal."
+1. **Empty (pick-folder)** — `totalPhotos === 0`. Full-height `Empty` (`h-[90dvh]`) with `ImageOff` media, title **"Mulai Sortir Foto"**, a description noting sort folders auto-create and state persists to `.nata-photo-db.json`, a large **"Pilih Folder Foto"** button (disabled → "Membaca…" while loading), and the note "Chrome/Edge/Opera terbaru diperlukan. File diproses secara lokal."
 
 2. **Loading** — the pick button switches to **"Membaca…"** (disabled); the navbar `StatusIndicator` shows a `Spinner` badge. RAW/metadata work surfaces its own spinners downstream.
 
@@ -364,7 +370,7 @@ stateDiagram-v2
 
 7. **All sorted** — when `totalPhotos > 0 && unsortedCount === 0`: a green success `Alert` above the viewer — **"Semua N foto sudah disortir 🎉"** (`CheckCircle2`). The viewer still shows the current file so the user can review/re-sort.
 
-8. **Error** — `fs.error` renders a red `Alert` (`AlertTriangleIcon`) at the top of `main`; e.g. a reset warning when `.photo-sorter-db.json` is missing/corrupt/incompatible. Uncaught render errors fall to the **ErrorBoundary** full-screen `Empty`: "Terjadi kesalahan" with **"Coba lagi"** (reset) and **"Muat ulang"** (reload).
+8. **Error** — `fs.error` renders a red `Alert` (`AlertTriangleIcon`) at the top of `main`; e.g. a reset warning when `.nata-photo-db.json` is missing/corrupt/incompatible. Uncaught render errors fall to the **ErrorBoundary** full-screen `Empty`: "Terjadi kesalahan" with **"Coba lagi"** (reset) and **"Muat ulang"** (reload).
 
 9. **Transient toasts** — the Zustand status store (max 3; success/error auto-expire after 3s; loading cleared explicitly) feeds `StatusIndicator`: a `Spinner`, `CheckCircle2`, or `XCircle` badge with a short message in the navbar.
 
@@ -406,7 +412,7 @@ Text/icons on folder colors are forced to `text-white`. These are literal Tailwi
 
 ## 9. Theming
 
-Theme is owned by [ThemeProvider](../src/components/ThemeProvider.tsx) and applied by toggling the `.dark` / `.light` class on `<html>`, which flips the CSS variables in [globals.css](../src/assets/styles/globals.css).
+Theme is owned by [ThemeProvider](../src/app/providers/ThemeProvider.tsx) and applied by toggling the `.dark` / `.light` class on `<html>`, which flips the CSS variables in [globals.css](../src/app/styles/globals.css).
 
 | Aspect | Behavior |
 | --- | --- |
@@ -485,8 +491,8 @@ Configured via `vite-plugin-pwa` in [vite.config.ts](../vite.config.ts) and the 
 
 | Aspect | Value |
 | --- | --- |
-| Manifest name | **"Photo Sorter — Sortir Foto & Video Lokal"** |
-| Short name | "Photo Sorter" |
+| Manifest name | **"Nata Photo — Sortir Foto & Video Lokal"** |
+| Short name | "Nata Photo" |
 | `display` | `standalone` (chromeless app window) |
 | `orientation` | `any` |
 | `theme_color` / `background_color` | `#0a0f1a` (dark navy — browser chrome & splash) |
@@ -515,7 +521,7 @@ Use this when adding or reviewing UI.
 
 - [ ] **Tokens only** — colors/radii come from the CSS variables / Tailwind token utilities (`bg-primary`, `text-muted-foreground`, `rounded-lg`), not hard-coded hex. Folder swatches are the one sanctioned exception (fixed 9-color palette).
 - [ ] **Both themes** — verified in light *and* dark; text contrast holds after the `.dark` inversion.
-- [ ] **Primitive reuse** — built from `src/components/ui` (Card, Item, Button, Badge, Alert, Empty…) rather than bespoke markup.
+- [ ] **Primitive reuse** — built from `src/shared/ui` (Card, Item, Button, Badge, Alert, Empty…) rather than bespoke markup.
 - [ ] **Keyboard parity** — any new action has a keyboard path, and the typing-guard still holds (no hijacking while an input is focused).
 - [ ] **Focus visible** — interactive elements show the `focus-visible` ring; icon-only controls have `aria-label` (or `sr-only` text).
 - [ ] **Responsive** — checked at `< md`, `md`, and `lg`; nothing overflows; long names `truncate`/`line-clamp`; long values `break-words`.

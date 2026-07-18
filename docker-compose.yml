@@ -13,8 +13,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: photo-sorter:latest
-    container_name: photo-sorter
+    image: nata-photo:latest
+    container_name: nata-photo
     restart: unless-stopped
     # PID 1 = tini: reaps zombies and forwards signals for clean shutdown.
     init: true

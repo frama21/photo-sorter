@@ -1,8 +1,8 @@
 # Engineering & Product Principles
 
-The values that guide how Photo Sorter is built and how we decide trade-offs, expressed as concrete, testable commitments rather than slogans.
+The values that guide how Nata Photo is built and how we decide trade-offs, expressed as concrete, testable commitments rather than slogans.
 
-Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
+Version 2.2.0 · Last updated 2026-07-19 · Status: Living document
 
 ---
 
@@ -12,7 +12,7 @@ Beyond the product principles below, **all code in this repository is written an
 
 ### Clean Code
 
-Small, single-responsibility functions with intention-revealing names; no dead code; comments explain _why_, not _what_. Formatting is enforced by Prettier (`pnpm format`, config in [.prettierrc](../.prettierrc)) and linting by ESLint (`pnpm lint`). Example: the file-operation helpers in [useFileSystem.ts](../src/hooks/useFileSystem.ts) (`fileExists`, `getUniqueFileName`, `writeFileTo`, `moveFileHandle`) are pure and named for exactly what they do.
+Small, single-responsibility functions with intention-revealing names; no dead code; comments explain _why_, not _what_. Formatting is enforced by Prettier (`pnpm format`, config in [.prettierrc](../.prettierrc)) and linting by ESLint (`pnpm lint`). Example: the file-operation helpers in [useFileSystem.ts](../src/features/file-system/model/useFileSystem.ts) (`fileExists`, `getUniqueFileName`, `writeFileTo`, `moveFileHandle`) are pure and named for exactly what they do.
 
 ### YAGNI — You Aren't Gonna Need It
 
@@ -20,7 +20,7 @@ We build only what the product needs today. There is no router (the app is a sin
 
 ### DRY — Don't Repeat Yourself
 
-Shared logic lives in one place: `megapixelsFrom()` in [exifService.ts](../src/services/exifService.ts) serves both the image and video paths; the four database writers funnel through a single `mutateDatabase()` read-modify-write helper in [dbService.ts](../src/services/dbService.ts); the security-header set is defined once per deployment target and mirrored, not re-derived.
+Shared logic lives in one place: `megapixelsFrom()` in [exifService.ts](../src/shared/services/exifService.ts) serves both the image and video paths; the four database writers funnel through a single `mutateDatabase()` read-modify-write helper in [dbService.ts](../src/shared/services/dbService.ts); the security-header set is defined once per deployment target and mirrored, not re-derived.
 
 ### KISS — Keep It Simple
 
@@ -38,9 +38,41 @@ Full keyboard operation with a typing-guard, `aria-label`s on icon-only controls
 
 ---
 
+## Longevity principles (Readable · Understandable · Reusable · Scalable · Maintainable · Easy to Hand Over)
+
+The six craft principles above keep individual files clean; these six keep the **whole project** healthy over time. They are what make Nata Photo something a new contributor can pick up, reason about, and extend without fear. They are realized structurally by the **Feature-Sliced Design (FSD)** layout adopted in this release — `src/{app,pages,features,shared}` with a strict one-way dependency rule (`app → pages → features → shared`) and a public-API `index.ts` barrel per slice. See [ARCHITECTURE.md §3](ARCHITECTURE.md#3-module--component-map).
+
+### Readable
+
+Code reads top-to-bottom like prose: intention-revealing names, small functions, and consistent formatting (Prettier) and ordering. Imports are grouped (external → `@/shared` → `@/features` → local) and every file does one thing the filename promises. You should never need a debugger to understand *what* a file does — only *why*, which the comments cover.
+
+### Understandable (Easy to Understand)
+
+The mental model is small and uniform. There is exactly one place each kind of thing lives (a feature owns its `ui/`, `model/`, `lib/`, `constants.ts`; cross-cutting code lives in `shared/`), so "where does X go?" always has one answer. Data flows one way: the `useFileSystem` controller owns session state and passes slices down as props; pages compose features; features never reach up. A reader can hold the whole shape in their head.
+
+### Reusable
+
+Shared, generic building blocks are factored out and used everywhere, never copy-pasted: the `shared/ui` primitives (shadcn/Radix, plus `PanelHeader`, `Thumbnail`, and the `WithTooltip` wrapper used by every icon button), the `cn()` utility, the i18n `t()`/`useTranslation()` API, and pure helpers (`getUniqueFileName`, `megapixelsFrom`, `validateFolderName`, `validateShortcut`). A change to a shared component updates every consumer at once.
+
+### Scalable
+
+The structure grows without churn. A new capability is a new folder under `features/` (or a new page under `pages/`) with its own barrel — nothing else has to move. A new language is one JSON file under `shared/i18n/language/` plus one line. A new file format is one declarative entry in `config/fileFormats.ts`. Growth is additive, not invasive, and the dependency rule keeps the graph acyclic as it expands.
+
+### Maintainable
+
+Changes are safe and localized. Strong TypeScript domain types catch mistakes at the boundary; lint + typecheck + Prettier are enforced by the build; the FSD boundaries mean a change's blast radius is its own slice. Comments explain the non-obvious *why*. This is the same commitment as [Principle 10](#principle-10--maintainability--conventions-optimize-for-the-next-contributor), applied at the architectural scale.
+
+### Easy to Hand Over
+
+A stranger can become productive quickly. The docs in [`docs/`](.) describe the product, architecture, and design; [ARCHITECTURE.md](ARCHITECTURE.md) maps every module; this document records the *why* behind decisions; and the folder names are self-describing. Onboarding is "read the tree, read ARCHITECTURE, start in the relevant feature slice" — no tribal knowledge required.
+
+> **How these are verified.** These are not aspirations: the FSD restructure, per-feature barrels, the reusable `WithTooltip`/`PanelHeader` components, the JSON-per-language i18n split, and the single-source-of-truth `fileFormats`/`constants` modules are all in the tree today. `pnpm build`, `pnpm lint`, and `pnpm format:check` gate every change.
+
+---
+
 ## How to read this document
 
-Photo Sorter is a 100% client-side photo & video sorter: you open a local folder, preview each file in chronological order, and assign it to a sort sub-folder with single-key shortcuts. Nothing is uploaded — every byte is processed in your browser via the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API).
+Nata Photo is a 100% client-side photo & video sorter: you open a local folder, preview each file in chronological order, and assign it to a sort sub-folder with single-key shortcuts. Nothing is uploaded — every byte is processed in your browser via the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API).
 
 That single fact — *the user's files never leave their machine* — is the root from which most of these principles grow. Each principle below has three parts:
 
@@ -62,9 +94,9 @@ Related reading: [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](SECURITY.md),
 
 **How it shows up in this codebase.**
 
-- File access goes exclusively through the File System Access API. Loading a folder is a direct `window.showDirectoryPicker()` call in [`src/hooks/useFileSystem.ts`](../src/hooks/useFileSystem.ts) (`loadDirectory`), and files are read from `FileSystemFileHandle`s the user explicitly granted.
+- File access goes exclusively through the File System Access API. Loading a folder is a direct `window.showDirectoryPicker()` call in [`src/features/file-system/model/useFileSystem.ts`](../src/features/file-system/model/useFileSystem.ts) (`loadDirectory`), and files are read from `FileSystemFileHandle`s the user explicitly granted.
 - There is **no fetch/XHR/WebSocket to any user-content endpoint** anywhere in the app. The Content-Security-Policy in [`server/index.js`](../server/index.js) pins `connect-src` to `'self' blob: data:` only — the browser itself forbids sending photo bytes to a third party.
-- Persistence is a local JSON file, `photo-sorter-db.json`, written *inside the folder the user opened* by [`src/services/dbService.ts`](../src/services/dbService.ts) (`writeDatabaseFile`). State lives next to the data it describes, on the user's disk — not in any cloud.
+- Persistence is a local JSON file, `nata-photo-db.json`, written *inside the folder the user opened* by [`src/shared/services/dbService.ts`](../src/shared/services/dbService.ts) (`writeDatabaseFile`). State lives next to the data it describes, on the user's disk — not in any cloud.
 - RAW decoding (`libraw-wasm`), EXIF parsing (`ExifReader`), and video metadata (`mediainfo.js`) all run in-browser (WebAssembly / Web Workers). No image is ever sent to a decode service.
 - No analytics SDK, no error-reporting beacon, no "phone home." Diagnostics are `console.warn`/`console.error` only (e.g. the RAW-decode and metadata-extract failure paths in `useFileSystem.ts`), which stay in the user's own devtools.
 - The manifest and README state the promise plainly, and the app is an installable, offline-capable PWA precisely so it can keep working with the network fully disconnected.
@@ -75,19 +107,19 @@ Related reading: [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](SECURITY.md),
 
 **Statement.** Treat images, videos, folder names, and the on-disk database as untrusted input. Validate shape and bounds, sanitize, and never let external data drive control flow or memory unchecked.
 
-**Why.** "Local-first" does not mean "trusted-first." The files a user opens may be malformed, adversarially crafted, or downloaded from anywhere. The `photo-sorter-db.json` file can be edited by any process with write access to that folder. Folder names are free-form user text that becomes a real filesystem path. A crafted image can carry a decompression bomb; a crafted JSON can attempt prototype pollution. Because we parse *untrusted binary and JSON at rest*, input handling is the largest part of our real attack surface, and we treat all of it as hostile by default.
+**Why.** "Local-first" does not mean "trusted-first." The files a user opens may be malformed, adversarially crafted, or downloaded from anywhere. The `nata-photo-db.json` file can be edited by any process with write access to that folder. Folder names are free-form user text that becomes a real filesystem path. A crafted image can carry a decompression bomb; a crafted JSON can attempt prototype pollution. Because we parse *untrusted binary and JSON at rest*, input handling is the largest part of our real attack surface, and we treat all of it as hostile by default.
 
 **How it shows up in this codebase.**
 
-- **The database is treated as untrusted input**, explicitly, in [`src/services/dbService.ts`](../src/services/dbService.ts): the file "lives inside the user's chosen folder, so it is untrusted input: it may be corrupt, or crafted by whoever can write to that folder." Loading runs a three-gate pipeline:
+- **The database is treated as untrusted input**, explicitly, in [`src/shared/services/dbService.ts`](../src/shared/services/dbService.ts): the file "lives inside the user's chosen folder, so it is untrusted input: it may be corrupt, or crafted by whoever can write to that folder." Loading runs a three-gate pipeline:
   1. `JSON.parse` inside try/catch → corrupt JSON is rejected with a visible warning, never throws.
   2. `isValidState()` structural validation → wrong shape is rejected.
   3. `parsed.version !== DB_VERSION` (`"2.0"`) → incompatible schema is reset.
 - **Prototype-pollution defense.** `safeRecord()` copies records into a **null-prototype object** (`Object.create(null)`) and drops `__proto__`, `constructor`, and `prototype` keys (`DANGEROUS_KEYS`). Nothing an attacker writes into `sortedPhotos` or `metadataCache` can climb the prototype chain.
 - **Unbounded-memory defense.** `sanitizeState()` bounds every collection: `MAX_SORTED_ENTRIES` / `MAX_METADATA_ENTRIES` = 100,000, `MAX_FOLDERS` = 1,000, operations sliced to `MAX_OPERATIONS` = 50, and scalar fields (`moveMode`, `currentIndex`) coerced to safe defaults. A malicious DB cannot exhaust memory or inject a bogus mode.
-- **Folder-name validation** in [`src/lib/safeName.ts`](../src/lib/safeName.ts) (`validateFolderName`) rejects path separators and Windows-reserved punctuation (`\ / : * ? " < > |`), ASCII control characters, `"."`/`".."`, reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`), trailing dot/space, and names over 200 characters — *before* the name reaches `getDirectoryHandle({ create: true })`. It is defense-in-depth on top of the File System Access API's own segment rejection.
+- **Folder-name validation** in [`src/shared/lib/safeName.ts`](../src/shared/lib/safeName.ts) (`validateFolderName`) rejects path separators and Windows-reserved punctuation (`\ / : * ? " < > |`), ASCII control characters, `"."`/`".."`, reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`), trailing dot/space, and names over 200 characters — *before* the name reaches `getDirectoryHandle({ create: true })`. It is defense-in-depth on top of the File System Access API's own segment rejection.
 - **Crafted-image DoS is patched.** `ExifReader` was bumped `^4.38.1 → ^4.41.0` to close GHSA-h64w-w9pr-82m4 (HIGH — crafted ICC `mluc` tag) and GHSA-rr89-w3h9-m66j (MODERATE — unbounded metadata decompression). Since `ExifReader` parses *untrusted user images*, this was the most material dependency finding. See [SECURITY.md](SECURITY.md).
-- **Bounded image parsing.** Image metadata reads only the first 2 MB header slice (`MAX_HEADER_BYTES`) in [`src/services/exifService.ts`](../src/services/exifService.ts), and RAW decoding is size-capped (see Principle 6). We never hand an unbounded blob to a decoder.
+- **Bounded image parsing.** Image metadata reads only the first 2 MB header slice (`MAX_HEADER_BYTES`) in [`src/shared/services/exifService.ts`](../src/shared/services/exifService.ts), and RAW decoding is size-capped (see Principle 6). We never hand an unbounded blob to a decoder.
 - **SVGs never execute.** SVGs are rendered via `<img src="blob:…">`, so any embedded `<script>` is inert — the browser treats the image as an image, not a document.
 - Restored state is re-checked against live reality: on load, `useFileSystem.ts` drops sort mappings whose target folder no longer exists (`validFolderIds`) and skips DB-listed folders that can't be re-opened, rather than trusting the file blindly.
 
@@ -111,7 +143,7 @@ Related reading: [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](SECURITY.md),
   connect-src 'self' blob: data:; manifest-src 'self'; upgrade-insecure-requests
   ```
 
-  Scripts get only `'wasm-unsafe-eval'` (needed to compile the `libraw`/`mediainfo` WASM) — never arbitrary `eval`. To keep the CSP intact, the service worker is registered manually in [`src/main.tsx`](../src/main.tsx) on `window` load, so `vite-plugin-pwa` injects **no inline script**.
+  Scripts get only `'wasm-unsafe-eval'` (needed to compile the `libraw`/`mediainfo` WASM) — never arbitrary `eval`. To keep the CSP intact, the service worker is registered manually in [`src/app/main.tsx`](../src/app/main.tsx) on `window` load, so `vite-plugin-pwa` injects **no inline script**.
 - **Full security-header set** via `helmet` plus a `Permissions-Policy` middleware, all verified live: `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`, `Cross-Origin-Resource-Policy: same-origin`, `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-Permitted-Cross-Domain-Policies: none`, `X-DNS-Prefetch-Control: off`, `X-Download-Options: noopen`, `Origin-Agent-Cluster: ?1`, and `X-XSS-Protection: 0` (the legacy, footgun-prone auditor is deliberately disabled).
 - **Cross-origin isolation** (COOP + COEP + CORP) is on by default — a prerequisite for the WASM decoders and a hard barrier against cross-origin leakage.
 - **Least privilege at the edge.** `Permissions-Policy` denies accelerometer, autoplay, browsing-topics, camera, display-capture, encrypted-media, geolocation, gyroscope, interest-cohort, magnetometer, microphone, midi, payment, publickey-credentials-get, screen-wake-lock, serial, sync-xhr, usb, and xr-spatial-tracking; it allows only `self` fullscreen and picture-in-picture for the media viewer.
@@ -130,7 +162,7 @@ See [SECURITY.md](SECURITY.md) for the complete posture and audit results.
 
 **How it shows up in this codebase.**
 
-- **Copy is the default mode.** In [`src/hooks/useFileSystem.ts`](../src/hooks/useFileSystem.ts), `moveMode` initializes to `"copy"` (`useState<MoveMode>("copy")` — commented `DEFAULT: COPY`). The destructive Cut/move is opt-in.
+- **Copy is the default mode.** In [`src/features/file-system/model/useFileSystem.ts`](../src/features/file-system/model/useFileSystem.ts), `moveMode` initializes to `"copy"` (`useState<MoveMode>("copy")` — commented `DEFAULT: COPY`). The destructive Cut/move is opt-in.
 - **Collision-safe writes — never overwrite.** `getUniqueFileName()` appends `_1`, `_2`, … when a name already exists in the target folder, so a copy or move can never clobber a same-named file. `fileExists()` probes before every write.
 - **Full undo with real reversal.** `undoLastOperation` (bound to `Ctrl/Cmd+Z`) reverses the *actual* filesystem effect: for Cut it moves the file back to the root and re-acquires a fresh handle; for Copy it deletes the exact duplicate that was created. The undo entry records `createdName` (the real on-disk name, which may differ after a collision suffix), so undo removes the right file, not a guess. The undo stack is bounded to 20 entries (`prev.slice(-19)` + the new entry).
 - **Handles are never stale after a move.** After a Cut, the code re-acquires the handle at its new location (`targetDirHandle.getFileHandle(createdName)`) and marks the photo `moved: true`, so subsequent operations act on the file that actually exists.
@@ -148,8 +180,8 @@ See [SECURITY.md](SECURITY.md) for the complete posture and audit results.
 
 **How it shows up in this codebase.**
 
-- **A top-level Error Boundary** wraps the app in [`src/main.tsx`](../src/main.tsx) (`StrictMode → ErrorBoundary → ThemeProvider → App`), so an unexpected render error shows a recovery UI instead of a white screen.
-- **RAW decode is defended on every axis** in [`src/services/rawDecoder.ts`](../src/services/rawDecoder.ts): a 20 s timeout (`LIBRAW_TIMEOUT_MS`), an upstream worker-hang workaround (`patchLibRawWorker()` fixes a `libraw-wasm` bug where a worker error left the decode promise pending forever), an all-white-output sanity check, worker termination after each decode, and a hard skip for files over 80 MB (`MAX_FULL_DECODE_BYTES`). A failed decode returns `null` — the viewer shows a graceful "preview unavailable" state.
+- **A top-level Error Boundary** wraps the app in [`src/app/main.tsx`](../src/app/main.tsx) (`StrictMode → ErrorBoundary → ThemeProvider → App`), so an unexpected render error shows a recovery UI instead of a white screen.
+- **RAW decode is defended on every axis** in [`src/shared/services/rawDecoder.ts`](../src/shared/services/rawDecoder.ts): a 20 s timeout (`LIBRAW_TIMEOUT_MS`), an upstream worker-hang workaround (`patchLibRawWorker()` fixes a `libraw-wasm` bug where a worker error left the decode promise pending forever), an all-white-output sanity check, worker termination after each decode, and a hard skip for files over 80 MB (`MAX_FULL_DECODE_BYTES`). A failed decode returns `null` — the viewer shows a graceful "preview unavailable" state.
 - **Failures don't retry-storm.** `useFileSystem.ts` tracks `failedRawDecodesRef` and never re-attempts a decode that already failed for a given file, so one bad RAW doesn't loop.
 - **Preview self-healing.** `recreatePreviewUrl` revokes and recreates a photo's object URL after an `<img>` load error, forcing a fresh decode — some large images fail only on first attempt.
 - **Metadata extraction is per-file try/catch.** In `loadDirectory`, a file whose capture date can't be read is simply "left uncached — ordering falls back to the file's mtime." Lazy extraction (`extractMetadata`) is wrapped so a failure `console.warn`s and moves on.
@@ -168,12 +200,12 @@ See [SECURITY.md](SECURITY.md) for the complete posture and audit results.
 
 **How it shows up in this codebase.**
 
-- **Header-only reads.** Image metadata parses only the first 2 MB slice (`MAX_HEADER_BYTES`) in [`src/services/exifService.ts`](../src/services/exifService.ts); video uses a chunked reader. We never buffer a whole 40 MB RAW to read a capture date.
-- **Lazy, neighbor-aware metadata.** The lazy-extract effect in [`src/hooks/useFileSystem.ts`](../src/hooks/useFileSystem.ts) processes only the current photo and its immediate neighbors (`[currentIndex, +1, -1]`), so metadata is ready just before you reach a file, without doing the whole folder up front.
-- **Two-layer caching.** Metadata is cached in memory (`metadataByKey`, `metadataCacheRef`) *and* persisted to `photo-sorter-db.json` (`metadataCache`), so reopening a folder is effectively instant — the initial chronological sort reuses cached dates and only reads files it has never seen.
+- **Header-only reads.** Image metadata parses only the first 2 MB slice (`MAX_HEADER_BYTES`) in [`src/shared/services/exifService.ts`](../src/shared/services/exifService.ts); video uses a chunked reader. We never buffer a whole 40 MB RAW to read a capture date.
+- **Lazy, neighbor-aware metadata.** The lazy-extract effect in [`src/features/file-system/model/useFileSystem.ts`](../src/features/file-system/model/useFileSystem.ts) processes only the current photo and its immediate neighbors (`[currentIndex, +1, -1]`), so metadata is ready just before you reach a file, without doing the whole folder up front.
+- **Two-layer caching.** Metadata is cached in memory (`metadataByKey`, `metadataCacheRef`) *and* persisted to `nata-photo-db.json` (`metadataCache`), so reopening a folder is effectively instant — the initial chronological sort reuses cached dates and only reads files it has never seen.
 - **Bounded concurrency.** The initial capture-date pass runs a fixed pool of up to 8 workers (`Array.from({ length: Math.min(8, total || 1) }, worker)`), and metadata persistence is `debounce`d to 1500 ms — enough parallelism to be fast, capped so we don't thrash the disk or the main thread.
 - **Cheap, correct ordering.** `parseCaptureDate` drives a single `sort` with a deterministic tiebreak (`localeCompare` on the key), and falls back to `lastModified` when no date exists.
-- **Bounded RAW previews.** [`src/services/rawDecoder.ts`](../src/services/rawDecoder.ts) prefers the *largest embedded JPEG preview* — scanning for `FF D8 FF` SOI markers, validating candidates with `createImageBitmap`, picking the widest, then re-encoding to `≤ 2048 px` (`MAX_PREVIEW_DIM`) so the cache stays small. Full `libraw` sensor decode (half-size, AHD, sRGB) is only the fallback, only when no sharp embedded preview ≥ 800 px (`SHARP_PREVIEW_MIN_WIDTH`) exists, and never for files > 80 MB.
+- **Bounded RAW previews.** [`src/shared/services/rawDecoder.ts`](../src/shared/services/rawDecoder.ts) prefers the *largest embedded JPEG preview* — scanning for `FF D8 FF` SOI markers, validating candidates with `createImageBitmap`, picking the widest, then re-encoding to `≤ 2048 px` (`MAX_PREVIEW_DIM`) so the cache stays small. Full `libraw` sensor decode (half-size, AHD, sRGB) is only the fallback, only when no sharp embedded preview ≥ 800 px (`SHARP_PREVIEW_MIN_WIDTH`) exists, and never for files > 80 MB.
 - **Serialized writes prevent lost work *and* redundant work.** The `writeChain` in `dbService.ts` means rapid-fire sorting doesn't spawn overlapping full-file rewrites.
 - **Blob-URL discipline.** Object URLs are created on load and revoked on reload/unmount (`revokeAllUrls`), and non-previewable formats (e.g. HEIC) get `url: null` instead of a wasted allocation — keeping memory flat across long sessions.
 
@@ -183,16 +215,18 @@ See [SECURITY.md](SECURITY.md) for the complete posture and audit results.
 
 **Statement.** The whole workflow must be operable without a mouse, legible to assistive technology, comfortable on phone and desktop, and localized for its audience.
 
-**Why.** Sorting is a high-repetition task; a keyboard-first flow is faster for *everyone* and essential for people who can't use a pointer. Accessibility is not a compliance checkbox — it directly serves the product's core promise of being a fast, ergonomic sorter. And because the audience is Indonesian, the interface speaks Indonesian.
+**Why.** Sorting is a high-repetition task; a keyboard-first flow is faster for *everyone* and essential for people who can't use a pointer. Accessibility is not a compliance checkbox — it directly serves the product's core promise of being a fast, ergonomic sorter. And because the audience spans English and Indonesian speakers, the interface is fully bilingual.
 
 **How it shows up in this codebase.**
 
-- **Full keyboard operation.** Keys `1`–`9` assign folders, `←`/`→` navigate, `Space` advances, `U` jumps to the next unsorted file, and `Ctrl/Cmd+Z` undoes — the entire loop needs no mouse. Handlers live in the app shell and are wired to `useFileSystem.ts` actions (`assignPhotoToFolder`, `navigatePhoto`, `jumpToNextUnsorted`, `undoLastOperation`).
+- **Full keyboard operation.** Number/letter keys assign the current photo to a folder (each folder's shortcut is user-customizable — see below), `←`/`→` navigate, `Space` advances, `U` jumps to the next unsorted file, and `Ctrl/Cmd+Z` undoes — the entire loop needs no mouse. Handlers live in [`ContentViewer`](../src/features/content-viewer/ui/ContentViewer.tsx) / the editor page and are wired to `useFileSystem` actions (`assignPhotoToFolder`, `navigatePhoto`, `jumpToNextUnsorted`, `undoLastOperation`).
+- **Customizable, conflict-checked shortcuts.** A folder's sort key is set by clicking its badge and pressing a key. [`validateShortcut`](../src/shared/lib/shortcut.ts) accepts *any* key except reserved app actions ([`RESERVED_SHORTCUT_KEYS`](../src/shared/constants/index.ts) — arrows, Space, `U`, Esc…) and keys already taken by another folder; modifier combinations (Ctrl/Alt/⌘+key) are rejected at capture time, and the recording listener runs in the capture phase so it never triggers a sort.
 - **Shortcuts yield to text entry.** Keyboard shortcuts are ignored while typing in an input, so naming a folder never triggers a sort.
-- **Screen-reader affordances.** `aria-label`s on navigation and folder-action buttons, an `sr-only` label on the theme toggle, and a visible focus ring (`focus-visible` / `outline-ring/50`) make state legible to assistive tech and keyboard users alike.
+- **Screen-reader affordances.** `aria-label`s on every icon-only control, `sr-only` labels on the theme/language toggles, a `role="status"`/`aria-live` region for toasts, and a visible focus ring (`focus-visible` / `outline-ring/50`) make state legible to assistive tech and keyboard users alike.
+- **Tooltips on every icon button.** Icon-only controls (toggles, zoom, nav, add/delete folder, batch-clear) are wrapped in the shadcn `WithTooltip` helper ([`src/shared/ui/tooltip.tsx`](../src/shared/ui/tooltip.tsx)) so their purpose is discoverable on hover/focus, with the same localized label as their `aria-label`.
 - **Responsive by construction.** Desktop uses a 12-column grid (viewer 8 cols + sticky sidebar 4 cols); mobile stacks to a single column with a fixed bottom `MobileActionBar` (prev/next + one colored button per folder) and swipe navigation (50 px threshold). One codebase serves both.
-- **Light/dark theming with system awareness.** `ThemeProvider` (default dark, `storageKey "vite-ui-theme"`) plus a toggle and system option; tokens are defined in OKLCH in [`src/assets/styles/globals.css`](../src/assets/styles/globals.css) for both `:root` and `.dark`.
-- **Localized UI.** The interface copy is Indonesian (`lang="id"`), including status toasts and the PWA manifest name "Photo Sorter — Sortir Foto & Video Lokal." (Code, comments, README, and CHANGELOG remain English — see [Coding conventions](#coding-conventions).)
+- **Light/dark theming with system awareness.** `ThemeProvider` (default dark, `storageKey "vite-ui-theme"`) plus a toggle and system option; tokens are defined in OKLCH in [`src/app/styles/globals.css`](../src/app/styles/globals.css) for both `:root` and `.dark`.
+- **Bilingual, persisted UI.** The interface ships English (default) and Indonesian via **i18next + react-i18next**, with a navbar language toggle. Strings live in one JSON file per language under [`src/shared/i18n/language/`](../src/shared/i18n/language/); the choice is persisted to `localStorage` under `lumen-storage` and `<html lang>` is kept in sync for assistive tech. A module-level `t()` localizes non-React code (services, the class `ErrorBoundary`) too. (Code, comments, README, and CHANGELOG remain English — see [Coding conventions](#coding-conventions).)
 
 ---
 
@@ -204,9 +238,9 @@ See [SECURITY.md](SECURITY.md) for the complete posture and audit results.
 
 **How it shows up in this codebase.**
 
-- **No router.** It is a single view. [`src/main.tsx`](../src/main.tsx) normalizes any non-`/` path back to `/`; the whole app is [`src/App.tsx`](../src/App.tsx) composing a handful of components. No routing library, no navigation state to secure.
+- **No router.** It is a single view. [`src/app/main.tsx`](../src/app/main.tsx) normalizes any non-`/` path back to `/`; the whole app is [`src/app/App.tsx`](../src/app/App.tsx) composing a handful of components. No routing library, no navigation state to secure.
 - **No backend for the app.** Persistence is a local JSON file, not a server or an embedded DB engine. The only server, [`server/index.js`](../server/index.js), is a *static file server* — Express 5 + `helmet` + `compression`, nothing more.
-- **One controller, clear boundaries.** State orchestration lives in one hook, [`src/hooks/useFileSystem.ts`](../src/hooks/useFileSystem.ts); pure services are cleanly separated (`dbService`, `exifService`, `rawDecoder`); a single Zustand store (`statusStore`) holds only transient toasts (max 3, auto-expiring). Responsibilities don't smear across the codebase.
+- **One controller, clear boundaries.** State orchestration lives in one hook, [`src/features/file-system/model/useFileSystem.ts`](../src/features/file-system/model/useFileSystem.ts); pure services are cleanly separated (`dbService`, `exifService`, `rawDecoder`); a single Zustand store (`statusStore`) holds only transient toasts (max 3, auto-expiring). Responsibilities don't smear across the codebase.
 - **Dependency hygiene as a security fix.** The audit found the `shadcn` CLI wrongly listed under `dependencies`, dragging a large server-side tree (`hono`, `qs`, `js-yaml`, `@babel/core`, `@modelcontextprotocol/sdk`) into the *production* graph — none of which ships in the browser bundle. It was moved to `devDependencies` (still needed at build time for the `shadcn/tailwind.css` import). Remaining transitive dev/build-only advisories were pinned via `pnpm.overrides`. Result: `pnpm audit` reports **"No known vulnerabilities found"** for both the full tree and `--prod`. See [SECURITY.md](SECURITY.md).
 - **Runtime image ships only what runs.** The Docker runtime stage carries only `server/index.js`, audited production `node_modules` (express, helmet, compression), and the built `dist` — no build toolchain, no dev dependencies.
 - **Small, obvious helpers.** File operations are pure functions with no component state (`fileExists`, `getUniqueFileName`, `writeFileTo`, `moveFileHandle`), and `moveFileHandle` prefers the native `handle.move()` and only falls back to copy-then-delete — the simplest correct thing.
@@ -237,12 +271,12 @@ See [SECURITY.md](SECURITY.md) for the complete posture and audit results.
 
 **How it shows up in this codebase.**
 
-- **TypeScript throughout, with real domain types.** [`src/types/index.ts`](../src/types/index.ts) defines `PhotoFile`, `PhotoMetadata`, `SortFolder`, `SortedMapping`, `MoveMode`, `SortOperation`, and `ProjectState`; the DB layer narrows untrusted data through explicit type guards (`isValidState`, the `valueOk` predicates in `safeRecord`) rather than casting blindly.
-- **Clear module boundaries.** Controller (`hooks/useFileSystem.ts`), services (`services/*`), config registry (`config/fileFormats.ts`), store (`stores/statusStore.ts`), name-safety (`lib/safeName.ts`), and UI (`components/*`) each own one concern. Pure file helpers carry no React state.
+- **TypeScript throughout, with real domain types.** [`src/shared/types/index.ts`](../src/shared/types/index.ts) defines `PhotoFile`, `PhotoMetadata`, `SortFolder`, `SortedMapping`, `MoveMode`, `SortOperation`, and `ProjectState`; the DB layer narrows untrusted data through explicit type guards (`isValidState`, the `valueOk` predicates in `safeRecord`) rather than casting blindly.
+- **Clear module boundaries (Feature-Sliced Design).** The tree is layered `src/{app,pages,features,shared}` with a one-way dependency rule and a public-API barrel per slice. The controller (`features/file-system/model/useFileSystem.ts`), services (`shared/services/*`), config registry (`shared/config/fileFormats.ts`), store (`shared/store/statusStore.ts`), name/shortcut safety (`shared/lib/*`), i18n (`shared/i18n/*`), and each UI feature (`features/*/ui`) own one concern. Pure helpers carry no React state.
 - **Comments explain the *why*.** The most load-bearing decisions are documented in-place: why writes are serialized (`writeChain`), why the DB is treated as untrusted, why the `libRaw` worker is patched, why `createdName` is stored for undo, why Copy is the default. These are the comments a maintainer needs.
 - **A single source of truth for formats.** New formats are added declaratively in `config/fileFormats.ts` (`PHOTO_FORMATS` with `extensions`/`mimeTypes`/`label`/`category`/`previewable`) and consumed via `isSupportedImage`, `isPreviewable`, `getFileFormatInfo` — you extend format support in one place.
 - **Lint and typecheck are part of the build.** `pnpm build` typechecks then builds; `pnpm lint` runs ESLint. These gates are non-optional in the [Definition of Done](#definition-of-done).
-- **Consistent design tokens.** UI styling flows from OKLCH tokens in [`src/assets/styles/globals.css`](../src/assets/styles/globals.css) and a derived radius scale, so components stay visually coherent without one-off values.
+- **Consistent design tokens.** UI styling flows from OKLCH tokens in [`src/app/styles/globals.css`](../src/app/styles/globals.css) and a derived radius scale, so components stay visually coherent without one-off values.
 
 ---
 
@@ -257,8 +291,8 @@ These are the concrete house rules that operationalize Principle 10.
 | **Modules** | One concern per module. Controller logic in hooks, side-effectful IO in `services/*`, pure helpers stay pure and stateless. |
 | **State** | App/session state in `useFileSystem`; only transient toasts in the Zustand `statusStore`. Don't scatter global state. |
 | **Comments** | Explain *why*, especially for non-obvious safety/perf decisions. Keep them accurate — a wrong comment is a bug. |
-| **Language of text** | Code, comments, README, CHANGELOG in **English**; user-facing UI copy in **Indonesian** (`lang="id"`). |
-| **UI components** | Compose shadcn/Radix primitives from `src/components/ui`; style via OKLCH tokens and Tailwind utilities (`cn()` from `src/lib/utils.ts`), not ad-hoc hex values. |
+| **Language of text** | Code, comments, README, CHANGELOG in **English**. User-facing UI copy is **bilingual (English + Indonesian)** via i18next — never hard-code display strings; add a key to both `src/shared/i18n/language/{en,id}.json` and render it with `t()`. |
+| **UI components** | Compose shadcn/Radix primitives from `src/shared/ui`; style via OKLCH tokens and Tailwind utilities (`cn()` from `src/shared/lib/utils.ts`), not ad-hoc hex values. |
 | **Formats** | Add support declaratively in `config/fileFormats.ts`; never hard-code extension checks elsewhere. |
 | **Security invariants** | Never weaken the CSP or add `connect-src` egress for user content. Never `dangerouslySetInnerHTML` untrusted data. Render SVG only via `<img>`. Keep the operation log handle-free and serializable. |
 | **Filesystem writes** | Route DB writes through `dbService` (the `enqueue`/`writeChain`); never overwrite a user file — go through `getUniqueFileName`. |
@@ -302,4 +336,4 @@ A change is not done until all of the following hold. This is the shared checkli
 
 ---
 
-*This is a living document. When a decision teaches us something new about how Photo Sorter should be built, we write it down here.*
+*This is a living document. When a decision teaches us something new about how Nata Photo should be built, we write it down here.*

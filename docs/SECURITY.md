@@ -1,6 +1,6 @@
 # Security Policy & Audit
 
-How Photo Sorter is secured, the results of a full security audit, and how to report a vulnerability.
+How Nata Photo is secured, the results of a full security audit, and how to report a vulnerability.
 
 Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
@@ -10,7 +10,7 @@ Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
 ## 1. TL;DR
 
-- **Photo Sorter has no backend.** Every file is opened, decoded, and sorted **locally in the browser** via the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API). Nothing is uploaded; there is no telemetry and no network egress (enforced by `connect-src 'self'`).
+- **Nata Photo has no backend.** Every file is opened, decoded, and sorted **locally in the browser** via the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API). Nothing is uploaded; there is no telemetry and no network egress (enforced by `connect-src 'self'`).
 - **Dependency tree is clean.** After this audit `pnpm audit` reports **"No known vulnerabilities found"** for both the full tree and the production (`--prod`) tree. The production container ships only `express`, `helmet`, `compression` (0 known vulns) plus the static build.
 - **Deployment is hardened and nginx-free.** A single container runs a tiny Express + [helmet](https://helmetjs.github.io/) static server as a **non-root** user with a **read-only** root filesystem, **all Linux capabilities dropped**, and `no-new-privileges`.
 - **World-class HTTP headers**, including a strict Content-Security-Policy, cross-origin isolation (COOP + COEP + CORP), HSTS, and a deny-by-default Permissions-Policy.
@@ -22,7 +22,7 @@ Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 Please report security issues **privately** — do not open a public GitHub issue.
 
 - **Preferred:** open a private advisory at
-  <https://github.com/frama21/photo-sorter/security/advisories/new>.
+  <https://github.com/frama21/nata-photo/security/advisories/new>.
 - A machine-readable contact is published per [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116) at
   [`/.well-known/security.txt`](../public/.well-known/security.txt).
 
@@ -32,16 +32,16 @@ We aim to acknowledge reports within a few days. Because the app is fully client
 
 ## 3. Security model
 
-Photo Sorter is a **local-first, zero-backend** single-page app. Its security model follows from that:
+Nata Photo is a **local-first, zero-backend** single-page app. Its security model follows from that:
 
 | Property | Consequence |
 | --- | --- |
 | No server-side application logic | No server-side injection, SSRF, auth, or session surface. |
 | No network egress at runtime | A compromised page cannot exfiltrate the user's files — `connect-src 'self'` blocks it. |
 | Explicit, user-granted file access | The app only touches the folder the user picks in the OS dialog, and only after an explicit gesture. |
-| State stored beside the user's data | Project state lives in `photo-sorter-db.json` **inside the chosen folder** — never in a cloud or shared store. |
+| State stored beside the user's data | Project state lives in `nata-photo-db.json` **inside the chosen folder** — never in a cloud or shared store. |
 
-The remaining attack surface is the classic client-side one: malicious **media files** or a malicious **`photo-sorter-db.json`** trying to crash/DoS the tab or pollute app state, cross-site attacks against the served page (XSS, clickjacking, framing), and supply-chain risk in dependencies. Each is addressed below.
+The remaining attack surface is the classic client-side one: malicious **media files** or a malicious **`nata-photo-db.json`** trying to crash/DoS the tab or pollute app state, cross-site attacks against the served page (XSS, clickjacking, framing), and supply-chain risk in dependencies. Each is addressed below.
 
 ### Trust boundaries
 
@@ -49,11 +49,11 @@ The remaining attack surface is the classic client-side one: malicious **media f
 flowchart LR
   subgraph Untrusted
     IMG[Image / video / RAW bytes]
-    DB[photo-sorter-db.json]
+    DB[nata-photo-db.json]
     NET[The wider web]
   end
   subgraph Browser["Browser origin (sandboxed, cross-origin isolated)"]
-    APP[Photo Sorter SPA]
+    APP[Nata Photo SPA]
   end
   subgraph Local["Local filesystem (user-granted handle)"]
     FS[(Chosen folder)]
@@ -125,15 +125,15 @@ All responses carry the full header set (verified live):
 
 | Control | Where | What it does |
 | --- | --- | --- |
-| **Untrusted-DB sanitization** | [`dbService.ts`](../src/services/dbService.ts) `sanitizeState`/`safeRecord` | On load, the DB's object maps are copied into **null-prototype** objects with `__proto__`/`constructor`/`prototype` keys dropped (prototype-pollution guard); collection sizes are bounded (100 000 mappings / metadata entries, 1 000 folders, 50 operations); `moveMode`/`currentIndex` are coerced to safe defaults. |
-| **Folder-name validation** | [`safeName.ts`](../src/lib/safeName.ts) `validateFolderName` | Defense-in-depth over the File System Access API's own rejection of path segments: blocks path separators, Windows-reserved punctuation, ASCII control chars, `.`/`..`, reserved device names (`CON`, `NUL`, `COM1`…), trailing dot/space, and names > 200 chars. |
-| **Header-only, bounded decoding** | [`exifService.ts`](../src/services/exifService.ts), [`rawDecoder.ts`](../src/services/rawDecoder.ts) | Images are parsed from the first **2 MB** only; full RAW sensor decode is skipped above **80 MB**; previews are re-encoded to **≤ 2048 px**; libraw decodes are killed after **20 s** and the worker is terminated. This bounds the DoS impact of a hostile file. |
+| **Untrusted-DB sanitization** | [`dbService.ts`](../src/shared/services/dbService.ts) `sanitizeState`/`safeRecord` | On load, the DB's object maps are copied into **null-prototype** objects with `__proto__`/`constructor`/`prototype` keys dropped (prototype-pollution guard); collection sizes are bounded (100 000 mappings / metadata entries, 1 000 folders, 50 operations); `moveMode`/`currentIndex` are coerced to safe defaults. |
+| **Folder-name validation** | [`safeName.ts`](../src/shared/lib/safeName.ts) `validateFolderName` | Defense-in-depth over the File System Access API's own rejection of path segments: blocks path separators, Windows-reserved punctuation, ASCII control chars, `.`/`..`, reserved device names (`CON`, `NUL`, `COM1`…), trailing dot/space, and names > 200 chars. |
+| **Header-only, bounded decoding** | [`exifService.ts`](../src/shared/services/exifService.ts), [`rawDecoder.ts`](../src/shared/services/rawDecoder.ts) | Images are parsed from the first **2 MB** only; full RAW sensor decode is skipped above **80 MB**; previews are re-encoded to **≤ 2048 px**; libraw decodes are killed after **20 s** and the worker is terminated. This bounds the DoS impact of a hostile file. |
 | **Patched image parser** | `exifreader ^4.41.0` | Fixes two DoS advisories in the EXIF parser that runs on untrusted images (see §5). |
 | **Output escaping** | React | All metadata and user text render through React's JSX escaping — no `dangerouslySetInnerHTML`, no `innerHTML`, no `eval` anywhere in `src/`. |
-| **SVG safety** | [`ContentViewer.tsx`](../src/components/ContentViewer.tsx) | SVGs render via `<img src="blob:…">`; scripts embedded in an SVG **do not execute** in the `<img>` context. |
+| **SVG safety** | [`ContentViewer.tsx`](../src/features/content-viewer/ui/ContentViewer.tsx) | SVGs render via `<img src="blob:…">`; scripts embedded in an SVG **do not execute** in the `<img>` context. |
 | **No secrets, no cookies** | — | The app stores no credentials and sets no cookies; there is nothing to steal via XSS beyond what the user already granted. |
-| **Blob-URL lifecycle** | [`useFileSystem.ts`](../src/hooks/useFileSystem.ts) | Object URLs are revoked on reload/unmount to prevent memory leaks. |
-| **Handle-free operation log** | [`types/index.ts`](../src/types/index.ts) | `SortOperation` intentionally stores no file handles, so the persisted log cannot smuggle live capabilities. |
+| **Blob-URL lifecycle** | [`useFileSystem.ts`](../src/features/file-system/model/useFileSystem.ts) | Object URLs are revoked on reload/unmount to prevent memory leaks. |
+| **Handle-free operation log** | [`types/index.ts`](../src/shared/types/index.ts) | `SortOperation` intentionally stores no file handles, so the persisted log cannot smuggle live capabilities. |
 
 ---
 
@@ -154,7 +154,7 @@ All responses carry the full header set (verified live):
 | 1 | **High** + Moderate | `exifreader` DoS via crafted ICC `mluc` tag ([GHSA-h64w-w9pr-82m4](https://github.com/advisories/GHSA-h64w-w9pr-82m4)) and unbounded metadata decompression ([GHSA-rr89-w3h9-m66j](https://github.com/advisories/GHSA-rr89-w3h9-m66j)). ExifReader parses **untrusted user images**, so this was the most material finding. | Bump `exifreader` `^4.38.1 → ^4.41.0` (patched ≥ 4.39.0). |
 | 2 | Supply-chain | The `shadcn` **CLI** was listed under `dependencies`, pulling a large server-side tree (`hono`, `qs`, `js-yaml`, `@babel/core`, `@modelcontextprotocol/sdk`) into the **production** dependency graph. None of it ships in the browser bundle. | Move `shadcn` to `devDependencies` (still needed at build time for the `shadcn/tailwind.css` import in `globals.css`). |
 | 3 | Moderate/Low | Remaining **dev/build-only** transitive advisories (`hono`, `qs`, `js-yaml`, `@babel/core`, `vite` dev-server `fs.deny` bypass, `launch-editor`, `brace-expansion`). | Pin patched versions via `pnpm.overrides` and bump `vite` to `^8.1.4`. |
-| 4 | Hardening | Prototype-pollution / unbounded-memory risk when reading `photo-sorter-db.json`. | `sanitizeState`/`safeRecord` (see §4.4). |
+| 4 | Hardening | Prototype-pollution / unbounded-memory risk when reading `nata-photo-db.json`. | `sanitizeState`/`safeRecord` (see §4.4). |
 | 5 | Hardening | Folder-name input only blocked a few characters. | `validateFolderName` (see §4.4). |
 | 6 | Hardening | nginx image shipped the whole toolchain and ran as root. | Minimal non-root Node runtime + hardened compose (see §6). |
 

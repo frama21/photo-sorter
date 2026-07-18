@@ -1,6 +1,6 @@
 # System Architecture
 
-The end-to-end design of **Photo Sorter** — a 100% client-side photo & video sorter that runs entirely in a Chromium browser, backed by a single hardened static-file container for delivery.
+The end-to-end design of **Nata Photo** — a 100% client-side photo & video sorter that runs entirely in a Chromium browser, backed by a single hardened static-file container for delivery.
 
 Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
@@ -10,7 +10,7 @@ Version 2.0.1 · Last updated 2026-07-14 · Status: Living document
 
 ## 1. Overview & guiding principles
 
-Photo Sorter is a **single-page application (SPA)** that reads, previews, orders, and re-files the user's local photos and videos **without ever uploading them**. All file access happens through the browser's [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) (`window.showDirectoryPicker`); all decoding, metadata extraction, and sorting logic runs on the user's own machine. The only server involved is a tiny static-file host that ships the compiled bundle — it never sees a single photo.
+Nata Photo is a **single-page application (SPA)** that reads, previews, orders, and re-files the user's local photos and videos **without ever uploading them**. All file access happens through the browser's [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) (`window.showDirectoryPicker`); all decoding, metadata extraction, and sorting logic runs on the user's own machine. The only server involved is a tiny static-file host that ships the compiled bundle — it never sees a single photo.
 
 The architecture is shaped by a handful of non-negotiable principles.
 
@@ -35,7 +35,7 @@ graph TB
 
     subgraph browser["Chromium browser (Chrome / Edge / Opera)"]
         direction TB
-        spa["Photo Sorter SPA<br/>React 19 + TypeScript"]
+        spa["Nata Photo SPA<br/>React 19 + TypeScript"]
         wasm["WASM workers<br/>libraw-wasm · mediainfo.js"]
         sw["Service Worker<br/>(Workbox precache)"]
         spa --- wasm
@@ -46,7 +46,7 @@ graph TB
         direction TB
         media["Top-level images & videos"]
         subfolders["Sort sub-folders 1..9"]
-        db[("photo-sorter-db.json")]
+        db[("nata-photo-db.json")]
     end
 
     subgraph edge["Public edge (optional)"]
@@ -76,56 +76,74 @@ graph TB
 
 ## 3. Module & component map
 
-The `src` tree is organized by responsibility: an entry point, a single view, a controller hook, stateless services, pure config/lib helpers, a small store, and shared types.
+The `src` tree follows **Feature-Sliced Design (FSD)**: four layers — `app` (bootstrap, providers, styles), `pages` (the presentation/routing layer that composes features into screens), `features` (one folder per user-facing capability), and `shared` (framework-agnostic building blocks). The dependency rule is one-directional: `app` → `pages` → `features` → `shared`; `shared` imports nothing above it. Each slice exposes a public API via an `index.ts` barrel, so consumers import `@/features/stats`, never a deep internal path.
+
+```text
+src/
+├── app/                          # composition layer — wires everything together
+│   ├── main.tsx                  # bootstrap + i18n init + service-worker register
+│   ├── App.tsx                   # app shell: navbar + error banner + page router
+│   ├── providers/                # ThemeProvider, ErrorBoundary (+ barrel)
+│   ├── styles/globals.css        # OKLCH design tokens, fonts, motion, a11y
+│   └── assets/
+├── pages/                        # presentation layer — one folder per screen
+│   ├── welcome/                  # start screen (pick-folder call-to-action)
+│   └── editor/                   # the sorting workspace (viewer + sidebar + bars)
+├── features/                     # 1 folder = 1 feature (each with an index.ts barrel)
+│   ├── file-system/model/        # useFileSystem — the CONTROLLER hook (~900 LOC)
+│   ├── content-viewer/           # ui/ + lib/useZoomPan + constants.ts (loupe)
+│   ├── folder-manager/  filmstrip/  grid-view/  metadata-panel/
+│   ├── operation-log/  stats/  batch-actions/  mobile-actions/
+│   ├── shortcuts/  theme-toggle/  language-toggle/  status-indicator/  progress/  navbar/
+│   └── grid-view/constants.ts    # feature-local constants (e.g. PAGE_SIZE)
+└── shared/                       # reused across features, no business logic
+    ├── ui/                       # shadcn/Radix primitives + PanelHeader, Thumbnail, tooltip
+    ├── services/                 # dbService, exifService, rawDecoder (stateless IO)
+    ├── lib/                      # utils (cn), safeName, shortcut (validation)
+    ├── store/                    # statusStore (Zustand toasts)
+    ├── config/                   # fileFormats registry
+    ├── constants/                # cross-cutting constants (FOLDER_COLORS, RESERVED_SHORTCUT_KEYS…)
+    ├── i18n/                     # i18next setup + language/{en,id}.json
+    └── types/                    # domain types + libraw.d.ts
+```
 
 ```mermaid
 graph TD
-    main["main.tsx<br/>bootstrap + SW register"]
-    App["App.tsx<br/>single view / composition"]
-    hook["hooks/useFileSystem.ts<br/>CONTROLLER (~860 LOC)"]
+    main["app/main.tsx<br/>bootstrap + SW register"]
+    App["app/App.tsx<br/>single view / composition"]
+    hook["features/file-system<br/>CONTROLLER (~860 LOC)"]
 
-    subgraph services["services/ (stateless)"]
-        db["dbService.ts<br/>persistence"]
-        exif["exifService.ts<br/>metadata + date parsing"]
-        raw["rawDecoder.ts<br/>RAW preview pipeline"]
+    subgraph feat["features/* (UI slices)"]
+        viewer["content-viewer"]
+        folders["folder-manager"]
+        panels["metadata-panel / stats / operation-log / …"]
+        chrome["navbar / status-indicator / theme-toggle"]
     end
 
-    subgraph libcfg["config / lib / stores / types"]
-        fmt["config/fileFormats.ts<br/>format registry"]
-        safe["lib/safeName.ts<br/>folder-name validation"]
-        utils["lib/utils.ts<br/>cn()"]
-        store["stores/statusStore.ts<br/>Zustand toasts"]
-        types["types/index.ts<br/>domain types"]
+    subgraph services["shared/services (stateless)"]
+        db["dbService"]
+        exif["exifService"]
+        raw["rawDecoder"]
     end
 
-    subgraph ui["components/"]
-        viewer["ContentViewer"]
-        folders["FolderManager"]
-        meta["MetadataPanel"]
-        log["OperationLog"]
-        stats["Stats"]
-        progress["ProgressBar"]
-        mobile["MobileActionBar"]
-        navbar["app/Navbar + StatusIndicator"]
-        theme["ThemeProvider / ThemeMode / ErrorBoundary"]
-        prim["ui/* (shadcn / Radix primitives)"]
+    subgraph sharedlib["shared/ (config · lib · store · constants · types · ui)"]
+        fmt["config/fileFormats"]
+        safe["lib/safeName"]
+        store["store/statusStore"]
+        consts["constants"]
+        types["types"]
+        prim["ui/* (shadcn primitives)"]
     end
 
     main --> App
     App --> hook
-    App --> ui
-    hook --> db
-    hook --> exif
-    hook --> raw
-    hook --> fmt
-    hook --> safe
-    hook --> store
-    hook --> types
+    App --> feat
+    hook --> db & exif & raw & fmt & safe & store & consts & types
     raw --> types
     exif --> fmt
     db --> store
-    viewer --> store
-    ui --> prim
+    feat --> prim
+    feat --> store
 
     classDef ctrl fill:#0b3d2e,stroke:#34d399,color:#e5e7eb;
     class hook ctrl;
@@ -137,7 +155,7 @@ graph TD
 
 ## 4. Runtime React tree
 
-`src/main.tsx` normalizes any non-`/` path back to `/` (this is a single-view app with no router, so a deep link or tampered URL is rewritten with `history.replaceState`), then registers the generated service worker (`/sw.js`) on `window`'s `load` event, and finally mounts the tree:
+`src/app/main.tsx` normalizes any non-`/` path back to `/` (this is a single-view app with no router, so a deep link or tampered URL is rewritten with `history.replaceState`), then registers the generated service worker (`/sw.js`) on `window`'s `load` event, and finally mounts the tree:
 
 ```mermaid
 graph TD
@@ -169,17 +187,17 @@ graph TD
 
 ## 5. State management
 
-Photo Sorter keeps three distinct kinds of state, each in exactly one place. Understanding the split is the key to the whole app.
+Nata Photo keeps three distinct kinds of state, each in exactly one place. Understanding the split is the key to the whole app.
 
 ### 5.1 The three state homes
 
 | State kind | Home | Lifetime | Examples |
 | --- | --- | --- | --- |
-| **Live application state** | [`useFileSystem`](../src/hooks/useFileSystem.ts) hook (React state + refs) | The mounted session | `photos`, `currentIndex`, `folders`, `sortedPhotos`, `moveMode`, `operations`, `undoStack`, `rawPreviewUrls`, `metadataByKey` |
-| **Transient UI feedback** | [`statusStore`](../src/stores/statusStore.ts) (Zustand) | Seconds (auto-expires) | Loading/success/error toasts shown in the navbar |
-| **Durable project state** | `photo-sorter-db.json` (on disk, via [`dbService`](../src/services/dbService.ts)) | Across reloads/sessions | Folders, per-file sort mapping, mode, `currentIndex`, operation log, metadata cache, stats |
+| **Live application state** | [`useFileSystem`](../src/features/file-system/model/useFileSystem.ts) hook (React state + refs) | The mounted session | `photos`, `currentIndex`, `folders`, `sortedPhotos`, `moveMode`, `operations`, `undoStack`, `rawPreviewUrls`, `metadataByKey` |
+| **Transient UI feedback** | [`statusStore`](../src/shared/store/statusStore.ts) (Zustand) | Seconds (auto-expires) | Loading/success/error toasts shown in the navbar |
+| **Durable project state** | `nata-photo-db.json` (on disk, via [`dbService`](../src/shared/services/dbService.ts)) | Across reloads/sessions | Folders, per-file sort mapping, mode, `currentIndex`, operation log, metadata cache, stats |
 
-The `useFileSystem` hook is the **controller** in an MVC-ish sense: `App` and its children are the view, the services are the model/IO layer, and the hook wires them together and owns all mutable session state. It is `~860` lines and is the single most important module to read: [src/hooks/useFileSystem.ts](../src/hooks/useFileSystem.ts).
+The `useFileSystem` hook is the **controller** in an MVC-ish sense: `App` and its children are the view, the services are the model/IO layer, and the hook wires them together and owns all mutable session state. It is `~860` lines and is the single most important module to read: [src/features/file-system/model/useFileSystem.ts](../src/features/file-system/model/useFileSystem.ts).
 
 ### 5.2 Why Zustand only for toasts
 
@@ -225,7 +243,7 @@ sequenceDiagram
     FS-->>H: root dirHandle
     H->>H: revoke old blob URLs, reset queues/undo
     H->>DB: initProjectDatabase(dirHandle)
-    DB->>FS: read/create photo-sorter-db.json
+    DB->>FS: read/create nata-photo-db.json
     DB-->>H: CompleteProjectState (folders, mapping, cache, ...)
     loop dirHandle.values() (top-level only)
         H->>FS: getFile() for each supported image/video
@@ -266,7 +284,7 @@ sequenceDiagram
     end
     H->>H: update sortedPhotos, operations, undoStack (max 20), currentIndex++
     H->>DB: updateDatabaseAfterOperation(...)  %% enqueued write
-    DB->>FS: read-modify-write photo-sorter-db.json
+    DB->>FS: read-modify-write nata-photo-db.json
     H-->>A: state updates → advance to next photo
 ```
 
@@ -302,11 +320,11 @@ The services are **stateless, framework-free modules** (no React) that the contr
 
 ### 7.1 `dbService.ts` — persistence
 
-[src/services/dbService.ts](../src/services/dbService.ts). Owns `photo-sorter-db.json` (schema `DB_VERSION = "2.0"`, `MAX_OPERATIONS = 50`). Public surface: `initProjectDatabase`, `updateDatabaseAfterOperation`, `updateDatabaseFolders`, `updateDatabaseMode`, `updateDatabaseMetadata`, `loadProjectState`. All writes go through `enqueue()`/`writeChain`. The load path validates shape + version, then runs `sanitizeState()` which strips prototype-pollution keys (`__proto__`/`constructor`/`prototype`) via `safeRecord()` into `Object.create(null)` maps, bounds every collection (`MAX_SORTED_ENTRIES`/`MAX_METADATA_ENTRIES` = 100 000, `MAX_FOLDERS` = 1 000, operations sliced to 50), and coerces `moveMode`/`currentIndex` to safe defaults. A missing, corrupt, or version-mismatched file returns `null` (reset) with a visible warning — it never throws.
+[src/shared/services/dbService.ts](../src/shared/services/dbService.ts). Owns `nata-photo-db.json` (schema `DB_VERSION = "2.0"`, `MAX_OPERATIONS = 50`). Public surface: `initProjectDatabase`, `updateDatabaseAfterOperation`, `updateDatabaseFolders`, `updateDatabaseMode`, `updateDatabaseMetadata`, `loadProjectState`. All writes go through `enqueue()`/`writeChain`. The load path validates shape + version, then runs `sanitizeState()` which strips prototype-pollution keys (`__proto__`/`constructor`/`prototype`) via `safeRecord()` into `Object.create(null)` maps, bounds every collection (`MAX_SORTED_ENTRIES`/`MAX_METADATA_ENTRIES` = 100 000, `MAX_FOLDERS` = 1 000, operations sliced to 50), and coerces `moveMode`/`currentIndex` to safe defaults. A missing, corrupt, or version-mismatched file returns `null` (reset) with a visible warning — it never throws.
 
 ### 7.2 `exifService.ts` — metadata & chronology
 
-[src/services/exifService.ts](../src/services/exifService.ts). `extractMetadata(file)` dispatches on category:
+[src/shared/services/exifService.ts](../src/shared/services/exifService.ts). `extractMetadata(file)` dispatches on category:
 
 - **Images**: reads only the first `MAX_HEADER_BYTES` (2 MB) slice and parses with `ExifReader` (`expanded: true`) — camera make/model, lens, ISO, shutter, aperture, focal length, capture date, dimensions, megapixels.
 - **Video**: uses `mediainfo.js` `analyzeData` with a chunked reader — duration, fps, codecs, bitrate, dimensions, and phone-recording QuickTime date/camera tags.
@@ -315,13 +333,13 @@ It also exports `parseCaptureDate` (the chronological sort key) and the display 
 
 ### 7.3 `rawDecoder.ts` — RAW preview
 
-[src/services/rawDecoder.ts](../src/services/rawDecoder.ts). `decodeRawImage(file)` returns an object URL or `null`. Full detail in [§12](#12-previewdecoding-pipeline).
+[src/shared/services/rawDecoder.ts](../src/shared/services/rawDecoder.ts). `decodeRawImage(file)` returns an object URL or `null`. Full detail in [§12](#12-previewdecoding-pipeline).
 
 ### 7.4 Supporting config & lib (not services, but IO-adjacent)
 
-- [config/fileFormats.ts](../src/config/fileFormats.ts) — the format registry (`PHOTO_FORMATS`) with `extensions`, `mimeTypes`, `label`, `category` (`standard | raw | vector | video | other`), and `previewable`; plus `isSupportedImage`, `isPreviewable`, `getFileFormatInfo`. HEIC/HEIF is marked **non-previewable** because Chromium cannot decode it in `<img>`.
-- [lib/safeName.ts](../src/lib/safeName.ts) — `validateFolderName()` rejects path separators, Windows-reserved punctuation, ASCII control chars, `"."`/`".."`, reserved device names (`CON`/`PRN`/`AUX`/`NUL`/`COM1-9`/`LPT1-9`), trailing dot/space, and names > 200 chars. Defense-in-depth on top of the File System Access API's own path-segment rejection.
-- [lib/utils.ts](../src/lib/utils.ts) — `cn()` (clsx + tailwind-merge).
+- [config/fileFormats.ts](../src/shared/config/fileFormats.ts) — the format registry (`PHOTO_FORMATS`) with `extensions`, `mimeTypes`, `label`, `category` (`standard | raw | vector | video | other`), and `previewable`; plus `isSupportedImage`, `isPreviewable`, `getFileFormatInfo`. HEIC/HEIF is marked **non-previewable** because Chromium cannot decode it in `<img>`.
+- [lib/safeName.ts](../src/shared/lib/safeName.ts) — `validateFolderName()` rejects path separators, Windows-reserved punctuation, ASCII control chars, `"."`/`".."`, reserved device names (`CON`/`PRN`/`AUX`/`NUL`/`COM1-9`/`LPT1-9`), trailing dot/space, and names > 200 chars. Defense-in-depth on top of the File System Access API's own path-segment rejection.
+- [lib/utils.ts](../src/shared/lib/utils.ts) — `cn()` (clsx + tailwind-merge).
 
 ---
 
@@ -351,7 +369,7 @@ Because the API is Chromium-only, `loadDirectory` guards on `"showDirectoryPicke
 
 ## 9. Persistence architecture (single-writer promise chain)
 
-The durable project state is one file, `photo-sorter-db.json`, written **inside the opened folder**. Its shape (`CompleteProjectState`) holds: `version`, `folders[]`, `sortedPhotos` (keyed by **file name**), `moveMode`, `currentIndex`, `operations[]` (max 50), an optional `metadataCache`, `stats`, and a `timestamp`.
+The durable project state is one file, `nata-photo-db.json`, written **inside the opened folder**. Its shape (`CompleteProjectState`) holds: `version`, `folders[]`, `sortedPhotos` (keyed by **file name**), `moveMode`, `currentIndex`, `operations[]` (max 50), an optional `metadataCache`, `stats`, and a `timestamp`.
 
 The central design decision is the **single-writer promise chain**:
 
@@ -373,7 +391,7 @@ The **load path is defensive** because the file is untrusted input (it lives in 
 
 ## 10. Domain data model
 
-The core types ([src/types/index.ts](../src/types/index.ts)) draw a hard line between **session objects** (which hold handles and `File`s) and **persistable records** (which hold none).
+The core types ([src/shared/types/index.ts](../src/shared/types/index.ts)) draw a hard line between **session objects** (which hold handles and `File`s) and **persistable records** (which hold none).
 
 ```mermaid
 classDiagram
@@ -427,10 +445,10 @@ classDiagram
 
 `App.tsx` is the only view module; everything else under `components/` is presentational and prop-driven.
 
-- **Layout**: a sticky, backdrop-blurred `Navbar` (logo, "Photo Sorter", version, `StatusIndicator`, theme toggle). Main content is a container; on `lg` it becomes a 12-column grid — `ContentViewer` spans **8 columns**, the sticky sidebar (`top-24`) spans **4 columns** and holds `FolderManager`, `MetadataPanel`, `OperationLog`, `Stats`. On mobile everything stacks and a fixed bottom `MobileActionBar` shows prev/next plus one colored button per folder.
+- **Layout**: a sticky, backdrop-blurred `Navbar` (logo, "Nata Photo", version, `StatusIndicator`, theme toggle). Main content is a container; on `lg` it becomes a 12-column grid — `ContentViewer` spans **8 columns**, the sticky sidebar (`top-24`) spans **4 columns** and holds `FolderManager`, `MetadataPanel`, `OperationLog`, `Stats`. On mobile everything stacks and a fixed bottom `MobileActionBar` shows prev/next plus one colored button per folder.
 - **Keyboard & touch** (in `ContentViewer`): `←/→` navigate, `Space` = next, `1`–`9` assign to the matching folder, `U` = jump to next unsorted, `Ctrl/Cmd+Z` = undo. Shortcuts are **ignored while typing** in an `input`/`textarea`/`contentEditable`. Mobile swipe uses a 50 px threshold.
 - **States**: empty (pick-folder), loading (spinner + progress text), viewer (image / video / RAW-decoding / preview-unavailable), all-sorted (green alert), error (`Alert` / `ErrorBoundary`). Transient feedback is via the status-store toasts.
-- **Design tokens**: `src/assets/styles/globals.css` in OKLCH, light on `:root`, dark on `.dark`, radius scale derived from `--radius: 0.625rem`. UI primitives are shadcn/Radix (style `radix-nova`, neutral base) with lucide icons.
+- **Design tokens**: `src/app/styles/globals.css` in OKLCH, light on `:root`, dark on `.dark`, radius scale derived from `--radius: 0.625rem`. UI primitives are shadcn/Radix (style `radix-nova`, neutral base) with lucide icons.
 - **Accessibility**: aria-labels on nav/folder buttons, an sr-only theme-toggle label, full keyboard operation, and a focus-visible ring (`outline-ring/50`).
 
 The UI copy is **Indonesian** (`lang="id"`); the code, comments, README, and this document are English.
@@ -494,7 +512,7 @@ The build is **Vite 8 (rolldown)** with three plugins ([vite.config.ts](../vite.
 - `registerType: "autoUpdate"` (skipWaiting + clientsClaim) so the app self-updates on reload.
 - `injectRegister: false` — the SW is registered **manually** in `main.tsx` so **no inline `<script>`** is injected, keeping the strict CSP intact (no `'unsafe-inline'` for scripts).
 - Workbox precaches `js,css,html,wasm,svg,png,ico,woff2` with `maximumFileSizeToCacheInBytes = 4 MB` to cover the ~1.3 MB libraw WASM, `cleanupOutdatedCaches`, and `navigateFallback: /index.html`.
-- Manifest: `display: standalone`, theme/background `#0a0f1a`, 192 & 512 icons, Indonesian name "Photo Sorter — Sortir Foto & Video Lokal".
+- Manifest: `display: standalone`, theme/background `#0a0f1a`, 192 & 512 icons, Indonesian name "Nata Photo — Sortir Foto & Video Lokal".
 
 **Dependency hygiene** ([package.json](../package.json)): the browser bundle depends only on runtime libraries (React, exifreader ≥ 4.41.0, libraw-wasm, mediainfo.js, radix-ui, zustand, lucide, small lodash utilities). The `shadcn` CLI is in `devDependencies` (build-time only), and `pnpm.overrides` pin patched versions of dev/build-only transitive deps so `pnpm audit` is clean for both the full tree and `--prod`. See [SECURITY.md](SECURITY.md) for the audit findings.
 
@@ -577,20 +595,20 @@ For **public HTTPS**, terminate TLS at the platform edge (Cloudflare, a load bal
 
 | Path | Role |
 | --- | --- |
-| [`src/main.tsx`](../src/main.tsx) | Bootstrap: path normalization, SW registration, mount `StrictMode → ErrorBoundary → ThemeProvider → App` |
-| [`src/App.tsx`](../src/App.tsx) | The single view; composes all components, derives sorted/unsorted counts and "all sorted" |
-| [`src/hooks/useFileSystem.ts`](../src/hooks/useFileSystem.ts) | **Controller**: owns all session state, orchestrates loading, sorting, undo, decode, persistence |
-| [`src/services/dbService.ts`](../src/services/dbService.ts) | `photo-sorter-db.json` read-modify-write via the single-writer chain; load-time sanitization |
-| [`src/services/exifService.ts`](../src/services/exifService.ts) | Image EXIF + video mediainfo extraction; capture-date parsing; display formatters |
-| [`src/services/rawDecoder.ts`](../src/services/rawDecoder.ts) | RAW preview pipeline (embedded-JPEG scan + libraw fallback) |
-| [`src/config/fileFormats.ts`](../src/config/fileFormats.ts) | Format registry + `isSupportedImage`/`isPreviewable`/`getFileFormatInfo` |
-| [`src/stores/statusStore.ts`](../src/stores/statusStore.ts) | Zustand toast store (max 3, auto-expire) with React-free helpers |
-| [`src/lib/safeName.ts`](../src/lib/safeName.ts) | `validateFolderName()` defense-in-depth |
-| [`src/lib/utils.ts`](../src/lib/utils.ts) | `cn()` (clsx + tailwind-merge) |
-| [`src/types/index.ts`](../src/types/index.ts) | Domain types (`PhotoFile`, `PhotoMetadata`, `SortFolder`, `SortedMapping`, `SortOperation`, `ProjectState`) |
+| [`src/app/main.tsx`](../src/app/main.tsx) | Bootstrap: path normalization, SW registration, mount `StrictMode → ErrorBoundary → ThemeProvider → App` |
+| [`src/app/App.tsx`](../src/app/App.tsx) | The single view; composes all components, derives sorted/unsorted counts and "all sorted" |
+| [`src/features/file-system/model/useFileSystem.ts`](../src/features/file-system/model/useFileSystem.ts) | **Controller**: owns all session state, orchestrates loading, sorting, undo, decode, persistence |
+| [`src/shared/services/dbService.ts`](../src/shared/services/dbService.ts) | `nata-photo-db.json` read-modify-write via the single-writer chain; load-time sanitization |
+| [`src/shared/services/exifService.ts`](../src/shared/services/exifService.ts) | Image EXIF + video mediainfo extraction; capture-date parsing; display formatters |
+| [`src/shared/services/rawDecoder.ts`](../src/shared/services/rawDecoder.ts) | RAW preview pipeline (embedded-JPEG scan + libraw fallback) |
+| [`src/shared/config/fileFormats.ts`](../src/shared/config/fileFormats.ts) | Format registry + `isSupportedImage`/`isPreviewable`/`getFileFormatInfo` |
+| [`src/shared/store/statusStore.ts`](../src/shared/store/statusStore.ts) | Zustand toast store (max 3, auto-expire) with React-free helpers |
+| [`src/shared/lib/safeName.ts`](../src/shared/lib/safeName.ts) | `validateFolderName()` defense-in-depth |
+| [`src/shared/lib/utils.ts`](../src/shared/lib/utils.ts) | `cn()` (clsx + tailwind-merge) |
+| [`src/shared/types/index.ts`](../src/shared/types/index.ts) | Domain types (`PhotoFile`, `PhotoMetadata`, `SortFolder`, `SortedMapping`, `SortOperation`, `ProjectState`) |
 | `src/components/` | Presentational components — `ContentViewer`, `FolderManager`, `MetadataPanel`, `OperationLog`, `Stats`, `ProgressBar`, `StatusIndicator`, `MobileActionBar`, `app/Navbar`, theme/error components |
-| `src/components/ui/` | shadcn / Radix primitives (alert, badge, button, card, dropdown-menu, empty, field, input, input-group, item, label, progress, separator, spinner, tabs, textarea) |
-| `src/assets/styles/globals.css` | OKLCH design tokens (light `:root` / dark `.dark`), radius scale |
+| `src/shared/ui/` | shadcn / Radix primitives (alert, badge, button, card, dropdown-menu, empty, field, input, input-group, item, label, progress, separator, spinner, tabs, textarea) |
+| `src/app/styles/globals.css` | OKLCH design tokens (light `:root` / dark `.dark`), radius scale |
 | [`vite.config.ts`](../vite.config.ts) | Vite + React + Tailwind + PWA config, `@`→`src` alias, dev COOP/COEP |
 | [`server/index.js`](../server/index.js) | Hardened Node/Express static server |
 | [`Dockerfile`](../Dockerfile) | Three-stage build → minimal non-root runtime image |

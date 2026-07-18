@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ============================================================
-# Photo Sorter — production image
+# Nata Photo — production image
 #
 # Three stages:
 #   1. build       — compile the SPA with pnpm (thrown away).

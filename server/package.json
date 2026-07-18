@@ -1,9 +1,9 @@
 {
-  "name": "photo-sorter-server",
+  "name": "nata-photo-server",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Hardened static file server for the Photo Sorter SPA (nginx-free deployment).",
+  "description": "Hardened static file server for the Nata Photo SPA (nginx-free deployment).",
   "engines": {
     "node": ">=20"
   },
